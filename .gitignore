@@ -1,0 +1,22 @@
+# Godot 4 缓存与导入产物
+.godot/
+*.translation
+
+# 导出产物
+export/
+build/
+*.exe
+*.pck
+*.zip
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.venv/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.tmp

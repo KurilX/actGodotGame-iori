@@ -1,0 +1,32 @@
+GIMP Palette
+Name: Ori 28
+Columns: 8
+# 缀 / actGame 像素色板 28 色硬上限
+ 18  20  42	01_ink  描边 / 深渊
+ 27  34  68	02_night_far  夜色远景
+ 42  58  99	03_night_mid  夜色中景
+ 61  83 133	04_night_near  夜色近景
+143 211 232	05_moon_hi  月光高光
+216 240 248	06_moon_white  月白
+ 90 100 120	07_stone  石材中
+ 57  64  81	08_stone_dark  石材暗
+123 134 153	09_stone_lit  石材亮
+ 74 107  79	10_moss  苔中
+ 46  70  52	11_moss_dark  苔暗
+110 154 107	12_moss_lit  苔亮
+122  95 168	13_wisteria  紫藤中
+ 79  61 116	14_wisteria_d  紫藤暗
+169 143 214	15_wisteria_l  紫藤亮
+255 233 168	16_lantern_hi  灯笼亮
+255 196 107	17_lantern  灯笼中
+224 145  63	18_lantern_d  灯笼暗
+242 248 236	19_cape_lit  主角披肩亮
+196 216 194	20_cape_dark  主角披肩暗
+168 232 198	21_hair_lit  发色亮
+ 95 168 130	22_hair_dark  发色暗
+251 227 210	23_skin_lit  肤色亮
+226 180 155	24_skin_dark  肤色暗
+255 122 156	25_danger  危险 / 弹幕
+194  69 106	26_danger_d  危险暗
+185 242 255	27_thread  丝线光
+255 255 255	28_white  纯白高光

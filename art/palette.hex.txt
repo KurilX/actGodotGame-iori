@@ -1,0 +1,28 @@
+#12142A	01_ink	描边 / 深渊
+#1B2244	02_night_far	夜色远景
+#2A3A63	03_night_mid	夜色中景
+#3D5385	04_night_near	夜色近景
+#8FD3E8	05_moon_hi	月光高光
+#D8F0F8	06_moon_white	月白
+#5A6478	07_stone	石材中
+#394051	08_stone_dark	石材暗
+#7B8699	09_stone_lit	石材亮
+#4A6B4F	10_moss	苔中
+#2E4634	11_moss_dark	苔暗
+#6E9A6B	12_moss_lit	苔亮
+#7A5FA8	13_wisteria	紫藤中
+#4F3D74	14_wisteria_d	紫藤暗
+#A98FD6	15_wisteria_l	紫藤亮
+#FFE9A8	16_lantern_hi	灯笼亮
+#FFC46B	17_lantern	灯笼中
+#E0913F	18_lantern_d	灯笼暗
+#F2F8EC	19_cape_lit	主角披肩亮
+#C4D8C2	20_cape_dark	主角披肩暗
+#A8E8C6	21_hair_lit	发色亮
+#5FA882	22_hair_dark	发色暗
+#FBE3D2	23_skin_lit	肤色亮
+#E2B49B	24_skin_dark	肤色暗
+#FF7A9C	25_danger	危险 / 弹幕
+#C2456A	26_danger_d	危险暗
+#B9F2FF	27_thread	丝线光
+#FFFFFF	28_white	纯白高光

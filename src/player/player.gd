@@ -101,11 +101,16 @@ signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 
 # 每段的刀光参数：(起始角, 终止角, 半径, 粗细)
 # 角度基准 0°=正右，90°=下，-90°=上
+# 与四段动作一一对应：
+#   1 上挑：剑从下往上撩 → 弧线从 +70° 扫到 -80°
+#   2 横斩：水平横扫   → 弧线窄而平，-25° 到 +25°
+#   3 突刺：水平直刺   → 不画弧，用短促的前方直线光（角度范围极小）
+#   4 下劈：从头顶劈落 → 弧线从 -110° 扫到 +90°
 const SLASH_FX := [
-	Vector4(-65, 55, 15, 2.0),      # 第1段 平斩
-	Vector4(55, -65, 16, 2.0),      # 第2段 回斩
-	Vector4(-90, 70, 17, 2.5),      # 第3段 下劈
-	Vector4(-110, 85, 20, 3.0),     # 第4段 终结
+	Vector4(70, -80, 16, 2.0),      # 第1段 上挑
+	Vector4(-25, 28, 17, 2.2),      # 第2段 横斩
+	Vector4(-8, 8, 19, 2.6),        # 第3段 突刺（近直线）
+	Vector4(-110, 90, 20, 3.0),     # 第4段 下劈
 ]
 
 var _current_anim := ""
@@ -156,8 +161,10 @@ func _physics_process(delta: float) -> void:
 # ────────────────────────────── 输入 ──────────────────────────────
 
 func _handle_input(_delta: float) -> void:
-	# 攻击输入：缓存起来，在合适时机消费
-	if Input.is_action_just_pressed("attack"):
+	# 攻击输入：**按住也算**，不要求每一下都重新点。
+	# 动作游戏的通行手感是按住攻击键持续连打；只认 just_pressed 会导致
+	# 玩家必须疯狂点击才能接上连段，手感非常糟。
+	if Input.is_action_pressed("attack"):
 		_combo_buffer = true
 
 	# 闪避优先于一切（除了受击/死亡）
@@ -256,15 +263,18 @@ func _update_attack(delta: float) -> void:
 
 
 func _try_next_combo() -> bool:
+	"""一段结束后尝试接下一段。
+
+	第 4 段打完后**循环回第 1 段**，这样按住攻击键可以无限连打，
+	而不是打完四段就停手等玩家重新按键（那是很差的连续攻击手感）。
+	"""
 	if not _combo_buffer:
 		return false
 	if _combo_index >= COMBO_MAX - 1:
-		# 已经是最后一段，缓存清掉，重新从第一段开始
-		_combo_buffer = false
+		# 四段打完，回到第一段接着打
 		_combo_index = 0
-		_combo_idle = 999.0
-		return false
-	_combo_index += 1
+	else:
+		_combo_index += 1
 	_combo_buffer = false
 	_begin_swing()
 	return true
@@ -479,11 +489,14 @@ func _play_attack_anim() -> void:
 
 
 func _animate_attack(progress: float) -> void:
-	# 3 帧：0 预备 / 1 挥出 / 2 收势
+	# 攻击动画 4 帧：0 预备 / 1 加速 / 2 命中 / 3 收势
+	# 分段与 COMBO 里的 hit_on/hit_off 对齐，让命中帧正好落在判定窗口内。
 	var f := 0
 	if progress >= 0.75:
+		f = 3
+	elif progress >= 0.42:
 		f = 2
-	elif progress >= 0.30:
+	elif progress >= 0.18:
 		f = 1
 	_anim.pause()
 	_anim.frame = f

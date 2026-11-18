@@ -13,10 +13,10 @@ func _init() -> void:
 		{"name": "run", "prefix": "ori_run", "count": 6, "loop": true, "fps": 12.0},
 		{"name": "jump", "prefix": "ori_jump", "count": 3, "loop": false, "fps": 8.0},
 		{"name": "land", "prefix": "ori_land", "count": 2, "loop": false, "fps": 12.0},
-		{"name": "atk1", "prefix": "ori_atk1", "count": 3, "loop": false, "fps": 0.0},
-		{"name": "atk2", "prefix": "ori_atk2", "count": 3, "loop": false, "fps": 0.0},
-		{"name": "atk3", "prefix": "ori_atk3", "count": 3, "loop": false, "fps": 0.0},
-		{"name": "atk4", "prefix": "ori_atk4", "count": 3, "loop": false, "fps": 0.0},
+		{"name": "atk1", "prefix": "ori_atk1", "count": 4, "loop": false, "fps": 0.0},
+		{"name": "atk2", "prefix": "ori_atk2", "count": 4, "loop": false, "fps": 0.0},
+		{"name": "atk3", "prefix": "ori_atk3", "count": 4, "loop": false, "fps": 0.0},
+		{"name": "atk4", "prefix": "ori_atk4", "count": 4, "loop": false, "fps": 0.0},
 		{"name": "dash", "prefix": "ori_dash", "count": 3, "loop": false, "fps": 0.0},
 	]
 

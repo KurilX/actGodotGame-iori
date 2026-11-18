@@ -29,10 +29,10 @@ SPECS = {
     "ori_jump": (3, False, 8.0),
     "ori_land": (2, False, 12.0),
     # 轻攻击四连：每段 3 帧，不循环，靠逻辑控制推进
-    "ori_atk1": (3, False, 0.0),
-    "ori_atk2": (3, False, 0.0),
-    "ori_atk3": (3, False, 0.0),
-    "ori_atk4": (3, False, 0.0),
+    "ori_atk1": (4, False, 0.0),
+    "ori_atk2": (4, False, 0.0),
+    "ori_atk3": (4, False, 0.0),
+    "ori_atk4": (4, False, 0.0),
     # 闪避：3 帧
     "ori_dash": (3, False, 0.0),
 }

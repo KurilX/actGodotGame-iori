@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://bqorip1ayer00"]
+[gd_scene load_steps=39 format=3 uid="uid://bqorip1ayer00"]
 
 [ext_resource type="Script" path="res://src/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://src/player/shadow.gd" id="17_shadow"]
@@ -21,18 +21,22 @@
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk1_0.png" id="t17"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk1_1.png" id="t18"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk1_2.png" id="t19"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_0.png" id="t20"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_1.png" id="t21"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_2.png" id="t22"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_0.png" id="t23"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_1.png" id="t24"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_2.png" id="t25"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_0.png" id="t26"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_1.png" id="t27"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_2.png" id="t28"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_0.png" id="t29"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_1.png" id="t30"]
-[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_2.png" id="t31"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk1_3.png" id="t20"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_0.png" id="t21"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_1.png" id="t22"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_2.png" id="t23"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk2_3.png" id="t24"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_0.png" id="t25"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_1.png" id="t26"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_2.png" id="t27"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk3_3.png" id="t28"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_0.png" id="t29"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_1.png" id="t30"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_2.png" id="t31"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_atk4_3.png" id="t32"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_0.png" id="t33"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_1.png" id="t34"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_2.png" id="t35"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(24, 40)
@@ -117,6 +121,9 @@ animations = [
 }, {
 "duration": 1.0,
 "texture": ExtResource("t19")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t20")
 }],
 "loop": false,
 "name": &"atk1",
@@ -124,13 +131,16 @@ animations = [
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("t20")
-}, {
-"duration": 1.0,
 "texture": ExtResource("t21")
 }, {
 "duration": 1.0,
 "texture": ExtResource("t22")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t23")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t24")
 }],
 "loop": false,
 "name": &"atk2",
@@ -138,19 +148,8 @@ animations = [
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("t23")
-}, {
-"duration": 1.0,
-"texture": ExtResource("t24")
-}, {
-"duration": 1.0,
 "texture": ExtResource("t25")
-}],
-"loop": false,
-"name": &"atk3",
-"speed": 1.0
 }, {
-"frames": [{
 "duration": 1.0,
 "texture": ExtResource("t26")
 }, {
@@ -161,7 +160,7 @@ animations = [
 "texture": ExtResource("t28")
 }],
 "loop": false,
-"name": &"atk4",
+"name": &"atk3",
 "speed": 1.0
 }, {
 "frames": [{
@@ -173,6 +172,23 @@ animations = [
 }, {
 "duration": 1.0,
 "texture": ExtResource("t31")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t32")
+}],
+"loop": false,
+"name": &"atk4",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("t33")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t34")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t35")
 }],
 "loop": false,
 "name": &"dash",

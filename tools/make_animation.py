@@ -331,29 +331,39 @@ def _thrust(p):
 
 
 def _jump_slash(p):
-    """第4段 跳劈：动画里腾空 → 举剑过头 → 下砸。
+    """第4段 跳劈：动画里腾空 → 举剑过头 → 垂直劈落。
 
     只是动画表现，**不改实际物理**：判定范围仍以地面为准。
+
+    角度约定：0°=剑尖正右，-90°=剑尖正上，+90°=剑尖正下。
+    跳劈必须满足两个条件，画面上才读得出「从上往下劈」：
+      - 举剑阶段：剑尖朝上（约 -95），且握把抬到头顶上方
+      - 劈落阶段：剑尖朝下（约 +85），握把落到腰高
+
+    早期版本用的是 -110 → 95，但握把位置没跟着抬/落，
+    结果视觉上剑一直斜指向右上，看起来像「从下往上撩」而不是劈。
     """
     specs = [
+        # 0 下蹲：剑拖在身后下方
         dict(body_dy=4, lean=-2, foot_l_dx=-6, foot_r_dx=5,
-             hand=(5, -8), sword_angle=110),          # 下蹲蓄力
-        # 起跳：整身抬高 7px，双腿收起
+             hand=(2, -10), sword_angle=120),
+        # 1 起跳：身体抬高，剑收到身前
         dict(body_dy=-7, lean=1, foot_l=(0, -6), foot_r=(0, -6),
              foot_l_dx=-2, foot_r_dx=2,
-             hand=(8, -22), sword_angle=-30),
-        # 顶点：举剑过头，腿收最紧
+             hand=(4, -22), sword_angle=-60),
+        # 2 顶点：握把抬到头顶上方，剑尖竖直朝上
         dict(body_dy=-10, lean=-1, foot_l=(0, -8), foot_r=(0, -8),
              foot_l_dx=-1, foot_r_dx=1,
-             hand=(7, -28), sword_angle=-110),
-        # 下砸：落回地面，剑劈到身前下方
-        dict(body_dy=2, lean=5, foot_l_dx=-7, foot_r_dx=7,
-             hand=(15, -14), sword_angle=95),
-        # 冲击：身体压到最低
-        dict(body_dy=5, lean=3, foot_l_dx=-8, foot_r_dx=8,
-             hand=(12, -11), sword_angle=105),
+             hand=(3, -34), sword_angle=-95),
+        # 3 下砸命中：握把落到腰高，剑尖竖直朝下劈到身前
+        dict(body_dy=2, lean=3, foot_l_dx=-7, foot_r_dx=7,
+             hand=(12, -16), sword_angle=85),
+        # 4 冲击：剑压得更低，身体压到最低
+        dict(body_dy=5, lean=2, foot_l_dx=-8, foot_r_dx=8,
+             hand=(11, -12), sword_angle=100),
+        # 5 回位
         dict(body_dy=1, lean=0, foot_l_dx=-4, foot_r_dx=4,
-             hand=(3, -15), sword_angle=95),          # 回位
+             hand=(6, -15), sword_angle=95),
     ]
     return [compose(Porter(**p), **s) for s in specs]
 

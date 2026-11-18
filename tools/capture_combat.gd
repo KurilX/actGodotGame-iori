@@ -39,19 +39,19 @@ func _init() -> void:
 		await process_frame
 	await _shoot("01_待机面对木桩")
 
-	# 四连连段：在刀光出现的那一帧抓图（刀光生命周期约 0.135s）
+	# 四连连段：等动画进到「命中帧」（frame=3）再抓。
+	# 注意 _shoot 内部会 await 若干帧，期间动画会继续推进，
+	# 所以进入循环后要**先暂停动画**再截，否则截到的已经是收势帧。
+	var anim: AnimatedSprite2D = player.get_node("Visual/AnimatedSprite2D")
 	for seg in 4:
 		player.start_attack()
-		# 等刀光节点真正激活
 		var waited := 0
-		while waited < 30:
+		while anim.frame != 3 and waited < 40:
 			await process_frame
 			waited += 1
-			if _slash_active(root):
-				break
-		await process_frame
+		anim.pause()
 		await _shoot("02_第%d段" % (seg + 1))
-		for i in 30:
+		for i in 40:
 			await process_frame
 
 	# 等木桩复活

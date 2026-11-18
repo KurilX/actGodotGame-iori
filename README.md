@@ -34,7 +34,7 @@ godot --path .
 
 推送到 `main` 后，GitHub Actions 会自动导出 Web 版并发布到 GitHub Pages：
 
-**https://kurilx.github.io/actGodotGame-iori/**
+**https://kurilx.github.io/actGodotGame-iori/** ← 点击即玩
 
 - 工作流在 [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml)，每次推送自动构建，也可在 Actions 页手动触发
 - 首次启用需在仓库 **Settings → Pages → Source** 选择 **GitHub Actions**

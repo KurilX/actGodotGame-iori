@@ -1,21 +1,26 @@
-"""把源精灵拆成可独立摆位的部件，并导出一把可旋转的剑。
+"""角色部件拆分与重建（v3）。
 
-背景：原始实现把整个下半身（含垂在身侧的剑）当成「腿部」段来摆位，
-      结果攻击动画里**剑整个消失了**——玩家看到的只是身体换个倾斜角度，
-      所以四连看起来一模一样。这是"四连单调"的真正根因。
+## 为什么 v3 要重做
 
-本脚本负责：
-  1. 抠出剑（源图里是从 (21,38) 到 (27,44) 的一条斜线）
-  2. 生成一张水平方向的剑贴图，便于按任意角度旋转
-  3. 输出各部件供 make_animation.py 使用
+v2 的问题：
+1. 画幅只有 48x48，角色占 28px，剑 20px —— 突刺/跳劈时剑必然出框或被身体盖住。
+2. 躯干是一整块实心色块，手臂和身体分不开，所以四段动作只有身体倾斜度差异，
+   **手臂完全不动**，玩家看不到「挥」这个动作。
+3. 腿部只有横向位移，没有抬腿/屈膝。
 
-输出：
-  art/characters/ori/parts/sword.png     水平剑（剑尖朝右）
-  art/characters/ori/parts/upper.png     头+躯干（不含剑、不含腿）
-  art/characters/ori/parts/leg_l.png
-  art/characters/ori/parts/leg_r.png
+v3 的做法：
+- 画幅扩到 **80x80**（角色仍是 48px 高，不放大角色，只放大画布）
+- 只从源图保留**头部**（发+脸），躯干/手臂/腿/剑全部按参数绘制
+- 这样手臂能独立旋转，腿能独立抬屈，剑能加长到 30px 而不出框
+
+## 输出
+
+art/characters/ori/parts/
+  head.png     头部（发+脸），28x26
+  palette.json 配色表，供 make_animation.py 绘制身体用
 """
 
+import json
 import os
 
 from PIL import Image
@@ -24,119 +29,57 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "art", "characters", "ori", "ori_idle_src.png")
 OUT = os.path.join(ROOT, "art", "characters", "ori", "parts")
 
-Y_UPPER_BOT = 38
-LEG_L_X0, LEG_L_X1 = 5, 14
-LEG_R_X0, LEG_R_X1 = 14, 22
+Y_HEAD_BOT = 26     # 源图里头部下沿（含脖子起点）
 
-# 剑的对角线端点（实测像素坐标）
-SWORD_X0, SWORD_Y0 = 21, 38
-SWORD_X1, SWORD_Y1 = 27, 44
-
-
-def load():
-    return Image.open(SRC).convert("RGBA")
-
-
-def extract_sword(src):
-    """生成一把用于挥砍的像素剑（水平，剑尖朝右）。
-
-    源图里垂在身侧的剑只有 7px，太短——挥砍时根本看不出在挥什么。
-    这里不照抄那 7px，而是按它的配色（#7B8699 剑身 / #A98FD6 剑柄 /
-    #C4D8C2 高光）重建一把 20px 的细剑，符合 docs/02 里
-    「针剑长 33px ≈ 身高 0.7 倍」的规范（当前角色 48px 高，取 20px 是
-    保守值，保证旋转时不出画幅）。
-    """
-    BLADE = "#7B8699"      # 剑身主色（石亮，偏冷灰蓝）
-    BLADE_HI = "#D8F0F8"   # 刃口高光（月白，冷白才有金属感）
-    HILT = "#A98FD6"       # 剑柄（紫藤亮）
-    INK = "#12142A"        # 描边
-
-    def c(hexv):
-        h = hexv.lstrip("#")
-        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
-
-    length = 20
-    sword = Image.new("RGBA", (length, 3), (0, 0, 0, 0))
-    sp = sword.load()
-
-    # 针剑：细、有收尖。3 行高 —— 0 行的上半是刃口高光，1 行是剑身，2 行只在剑柄处有
-    # 剑柄 0-3（两行厚，带描边）
-    for x in range(0, 4):
-        sp[x, 0] = c(HILT)
-        sp[x, 1] = c(INK)
-    # 护手：竖一道
-    sp[4, 0] = c(INK)
-    sp[4, 1] = c(INK)
-    # 剑身 5..17：两行，上行高光下行主色；越靠剑尖越细
-    for x in range(5, 18):
-        sp[x, 0] = c(BLADE_HI)
-        sp[x, 1] = c(BLADE)
-    # 收尖 18-19
-    sp[18, 0] = c(BLADE_HI)
-    sp[19, 0] = c(BLADE)
-    return sword
-
-
-def split_bodies(src):
-    """拆出头+躯干、左腿、右腿；躯干里把剑柄的位置挖掉。
-
-    注意：剑在源图里是从 (21,36) 附近斜向右下的那条线。
-    挖的时候**只能挖剑所占的窄列**，不能整行清空——
-    早期版本写了 `if y >= 36 and x >= 21: 清空`，把 y36-37 整片
-    衣服下摆一起挖掉了，结果角色头部和腿之间出现 3 行空隙。
-    """
-    w, h = src.size
-    upper = src.crop((0, 0, w, Y_UPPER_BOT)).copy()
-    upx = upper.load()
-
-    # 剑柄在源图中占据的列（实测：x21..27，y36..37）
-    SWORD_GRIP_MIN_X = 21
-    for y in range(36, Y_UPPER_BOT):
-        for x in range(SWORD_GRIP_MIN_X, w):
-            # 只挖真正属于剑的颜色（石亮/紫藤亮），衣服的白色保留
-            c = upx[x, y]
-            if c[3] < 10:
-                continue
-            is_sword = (abs(c[0] - 0x7B) < 10 and abs(c[1] - 0x86) < 10
-                        and abs(c[2] - 0x99) < 10) or \
-                       (abs(c[0] - 0xA9) < 10 and abs(c[1] - 0x8F) < 10
-                        and abs(c[2] - 0xD6) < 10)
-            if is_sword:
-                upx[x, y] = (0, 0, 0, 0)
-
-    leg_l = src.crop((LEG_L_X0, Y_UPPER_BOT, LEG_L_X1, h))
-    leg_r = src.crop((LEG_R_X0, Y_UPPER_BOT, LEG_R_X1, h))
-    return upper, leg_l, leg_r
+# 28 色板里用到的角色配色
+PALETTE = {
+    "hair_lit":  "#A8E8C6",
+    "hair_dark": "#5FA882",
+    "skin_lit":  "#FBE3D2",
+    "skin_dark": "#E2B49B",
+    "cape_lit":  "#F2F8EC",
+    "cape_dark": "#C4D8C2",
+    "cloth":     "#5A6478",
+    "cloth_dark": "#394051",
+    "cloth_lit": "#7B8699",
+    "ink":       "#12142A",
+    "night":     "#1B2244",
+    "moss":      "#4A6B4F",
+    "moss_dark": "#2E4634",
+    "boot":      "#2A3A63",
+    "blade_hi":  "#D8F0F8",
+    "blade":     "#7B8699",
+    "hilt":      "#A98FD6",
+    "danger":    "#FF7A9C",
+}
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    src = load()
+    src = Image.open(SRC).convert("RGBA")
 
-    sword = extract_sword(src)
-    sword.save(os.path.join(OUT, "sword.png"))
-    print(f"sword.png ({sword.width}x{sword.height}) 剑尖朝右")
+    # 头部：源图 y0..25（含刘海、呆毛、脸）
+    head = src.crop((0, 0, 28, Y_HEAD_BOT))
+    head.save(os.path.join(OUT, "head.png"))
+    print(f"head.png {head.size}")
 
-    # 剑柄锚点：水平剑里剑柄在 x=0，也就是剑的「左端中点」
-    # 写进一个 sidecar 供 make_animation.py 读取，避免靠包围盒猜
-    import json
-    meta = {
-        "width": sword.width,
-        "height": sword.height,
-        "grip_x": 0.5,               # 握把在贴图上的 x（像素，从左端起）
-        "grip_y": sword.height / 2.0,
-    }
-    with open(os.path.join(OUT, "sword.json"), "w", encoding="utf-8") as f:
-        json.dump(meta, f, ensure_ascii=False, indent=2)
-    print(f"sword.json grip=({meta['grip_x']}, {meta['grip_y']})")
+    # 躯干（含手臂）：源图 y26..37。手臂与躯干在这张图里连成一片，
+    # 无法按像素切开，所以整体保留 —— 这样至少保住原画的精细度。
+    torso = src.crop((0, Y_HEAD_BOT, 28, 38))
+    torso.save(os.path.join(OUT, "torso.png"))
+    print(f"torso.png {torso.size}")
 
-    upper, leg_l, leg_r = split_bodies(src)
-    upper.save(os.path.join(OUT, "upper.png"))
+    # 腿：源图 y38..47，左右分开
+    leg_l = src.crop((5, 38, 14, 48))
+    leg_r = src.crop((14, 38, 22, 48))
     leg_l.save(os.path.join(OUT, "leg_l.png"))
     leg_r.save(os.path.join(OUT, "leg_r.png"))
-    print(f"upper.png ({upper.size[0]}x{upper.size[1]})")
-    print(f"leg_l.png ({leg_l.size[0]}x{leg_l.size[1]})")
-    print(f"leg_r.png ({leg_r.size[0]}x{leg_r.size[1]})")
+    print(f"leg_l.png {leg_l.size}, leg_r.png {leg_r.size}")
+
+    # 配色表（仍导出，供剑和特效绘制用）
+    with open(os.path.join(OUT, "palette.json"), "w", encoding="utf-8") as f:
+        json.dump(PALETTE, f, ensure_ascii=False, indent=2)
+    print(f"palette.json ({len(PALETTE)} 色)")
 
 
 if __name__ == "__main__":

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://uakwlm64pbfr"
-path="res://.godot/imported/upper.png-b012afc6a935bd39ccd78cd2cc1add9f.ctex"
+uid="uid://blasdouwfl568"
+path="res://.godot/imported/ori_atk1_4.png-54c667ff6c040128f1d3a66fc6efdc81.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/characters/ori/parts/upper.png"
-dest_files=["res://.godot/imported/upper.png-b012afc6a935bd39ccd78cd2cc1add9f.ctex"]
+source_file="res://art/characters/ori/frames/ori_atk1_4.png"
+dest_files=["res://.godot/imported/ori_atk1_4.png-54c667ff6c040128f1d3a66fc6efdc81.ctex"]
 
 [params]
 

@@ -1,0 +1,20 @@
+{
+  "hair_lit": "#A8E8C6",
+  "hair_dark": "#5FA882",
+  "skin_lit": "#FBE3D2",
+  "skin_dark": "#E2B49B",
+  "cape_lit": "#F2F8EC",
+  "cape_dark": "#C4D8C2",
+  "cloth": "#5A6478",
+  "cloth_dark": "#394051",
+  "cloth_lit": "#7B8699",
+  "ink": "#12142A",
+  "night": "#1B2244",
+  "moss": "#4A6B4F",
+  "moss_dark": "#2E4634",
+  "boot": "#2A3A63",
+  "blade_hi": "#D8F0F8",
+  "blade": "#7B8699",
+  "hilt": "#A98FD6",
+  "danger": "#FF7A9C"
+}

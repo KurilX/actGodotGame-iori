@@ -101,16 +101,16 @@ signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 
 # 每段的刀光参数：(起始角, 终止角, 半径, 粗细)
 # 角度基准 0°=正右，90°=下，-90°=上
-# 与四段动作一一对应：
-#   1 上挑：剑从下往上撩 → 弧线从 +70° 扫到 -80°
-#   2 横斩：水平横扫   → 弧线窄而平，-25° 到 +25°
-#   3 突刺：水平直刺   → 不画弧，用短促的前方直线光（角度范围极小）
-#   4 下劈：从头顶劈落 → 弧线从 -110° 扫到 +90°
+# 与 v3 四段动作一一对应（v3 动作幅度加大，半径也相应加大）：
+#   1 上挑：剑沿身体竖直上撩 → 弧线从 +80° 扫到 -100°
+#   2 横斩：水平横扫       → 窄而平的横弧 -30° 到 +35°
+#   3 突刺：水平直刺       → 近直线，-6° 到 +6°
+#   4 跳劈：腾空后下砸     → 大半径竖弧 -115° 到 +95°
 const SLASH_FX := [
-	Vector4(70, -80, 16, 2.0),      # 第1段 上挑
-	Vector4(-25, 28, 17, 2.2),      # 第2段 横斩
-	Vector4(-8, 8, 19, 2.6),        # 第3段 突刺（近直线）
-	Vector4(-110, 90, 20, 3.0),     # 第4段 下劈
+	Vector4(80, -100, 20, 2.4),     # 第1段 上挑
+	Vector4(-30, 35, 22, 2.6),      # 第2段 横斩
+	Vector4(-6, 6, 24, 2.8),        # 第3段 突刺（近直线）
+	Vector4(-115, 95, 26, 3.4),     # 第4段 跳劈（最大弧）
 ]
 
 var _current_anim := ""
@@ -299,16 +299,17 @@ func _begin_swing() -> void:
 
 
 func _fire_slash_fx() -> void:
-	# 刀光由世界层的 SlashLayer 绘制（见 src/world/slash_layer.gd）。
+	# 刀光由世界层的 SlashLayer 绘制（见 src/world/slash_sprite.gd）。
 	# 不画进角色帧、也不做 Player 子节点：前者会覆盖角色像素，
 	# 后者受 flip_h 和父变换影响，位置会错乱。
 	var fx: Vector4 = SLASH_FX[_combo_index]
 	var color := Color("#B9F2FF")
 	if _combo_index == COMBO_MAX - 1:
 		color = Color("#FF7A9C")
-	# 弧心：角色身前、躯干高度
-	var origin := global_position + Vector2(4.0 * facing, -26.0)
-	slash_requested.emit(origin, fx.x, fx.y, fx.z, color, fx.w, 0.14, facing)
+	# 弧心：角色身前、躯干中部高度。
+	# v3 角色仍 48px 高（脚在原点），躯干中心约在 y=-22，略偏前 x=4。
+	var origin := global_position + Vector2(4.0 * facing, -22.0)
+	slash_requested.emit(origin, fx.x, fx.y, fx.z, color, fx.w, 0.16, facing)
 
 
 func start_attack() -> void:
@@ -489,14 +490,20 @@ func _play_attack_anim() -> void:
 
 
 func _animate_attack(progress: float) -> void:
-	# 攻击动画 4 帧：0 预备 / 1 加速 / 2 命中 / 3 收势
-	# 分段与 COMBO 里的 hit_on/hit_off 对齐，让命中帧正好落在判定窗口内。
+	# 攻击动画 6 帧（v3 从 4 帧扩到 6 帧）：
+	# 0 蓄势 / 1 起手 / 2 加速 / 3 命中 / 4 收势 / 5 回位
+	# 命中帧（3）要落在 COMBO 的 hit_on..hit_off 窗口内，
+	# 否则会出现「动画已经打完了判定才开」的错位感。
 	var f := 0
-	if progress >= 0.75:
-		f = 3
+	if progress >= 0.88:
+		f = 5
+	elif progress >= 0.72:
+		f = 4
 	elif progress >= 0.42:
+		f = 3
+	elif progress >= 0.26:
 		f = 2
-	elif progress >= 0.18:
+	elif progress >= 0.12:
 		f = 1
 	_anim.pause()
 	_anim.frame = f

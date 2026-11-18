@@ -21,6 +21,12 @@ window/size/window_height_override=810
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
 window/stretch/scale_mode="integer"
+window/handheld/orientation=1
+
+; Web 导出专用：浏览器窗口尺寸不可控，单位用 viewport 比例而非固定像素
+; 否则 1440x810 在小于该尺寸的屏幕上会被裁切
+window/size/initial_position_type=0
+window/size/resizable=true
 
 [rendering]
 

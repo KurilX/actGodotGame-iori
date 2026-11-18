@@ -1,0 +1,78 @@
+name: Build and Deploy Web
+
+# 自动把 Godot 项目导出成 Web 版并发布到 GitHub Pages。
+# 触发：推送到 main，或手动触发。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages 部署所需权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署，避免并发覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+
+          # 引擎本体（Linux headless 版即可，导出不需要图形界面）
+          curl -fsSL -o godot.zip "${BASE}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+
+          # 导出模板：体积约 1.2GB，需要装到标准位置
+          mkdir -p ~/.local/share/godot/export_templates
+          curl -fsSL -o templates.tpz "${BASE}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz -d /tmp/tpl
+          mv /tmp/tpl/templates "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+
+          ./godot --version
+
+      - name: Export Web build
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          # --headless 导出，不需要显示器
+          ./godot --headless --path . --export-release "Web" build/index.html 2>&1 | tee export.log
+          # 导出失败时 godot 有时仍返回 0，检查产物是否存在
+          test -f build/index.html || { echo "导出失败：缺 index.html"; cat export.log; exit 1; }
+          test -f build/index.wasm || { echo "导出失败：缺 index.wasm"; cat export.log; exit 1; }
+          ls -lh build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

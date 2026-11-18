@@ -30,6 +30,19 @@ godot --path .
 
 仓库里不含 Godot 的导入缓存（`.godot/`），首次打开会自动重新导入资源，稍等片刻即可。
 
+## 在线试玩（浏览器）
+
+推送到 `main` 后，GitHub Actions 会自动导出 Web 版并发布到 GitHub Pages：
+
+**https://kurilx.github.io/actGodotGame-iori/**
+
+- 工作流在 [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml)，每次推送自动构建，也可在 Actions 页手动触发
+- 首次启用需在仓库 **Settings → Pages → Source** 选择 **GitHub Actions**
+- 导出用官方 Web 模板，**单线程模式**（`variant/thread_support=false`），因此不需要服务器配置 `SharedArrayBuffer` 交叉源隔离头，GitHub Pages 直接可跑
+- 渲染器必须是 `gl_compatibility`（WebGL 2.0）；本项目一开始就用的兼容渲染器，无需改动
+
+构建产物不进仓库，由 CI 每次现构建，仓库体积保持在 ~10MB。
+
 ## 操作
 
 | 动作 | 键盘 | 手柄 |

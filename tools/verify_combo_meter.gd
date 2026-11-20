@@ -124,6 +124,49 @@ func _init() -> void:
 	_check(low_col != high_col, "17. 低段位与高段位颜色不同",
 	       "都是 %s" % str(low_col))
 
+	# ── 11. 空挥扣段 ──
+	combo.reset_combo()
+	for i in 5:
+		combo.register_hit(1)
+	var before_whiff: int = combo.get_segments()
+	combo.register_whiff(false)          # 轻攻击挥空 -1
+	_check(combo.get_segments() == before_whiff - 1,
+	       "18. 空挥（轻）扣 1 段（%d → %d）" % [before_whiff, combo.get_segments()],
+	       "实际 %d" % combo.get_segments())
+
+	var before_heavy: int = combo.get_segments()
+	combo.register_whiff(true)           # 重攻击挥空 -2
+	_check(combo.get_segments() == before_heavy - 2,
+	       "19. 空挥（重）扣 2 段（%d → %d）" % [before_heavy, combo.get_segments()],
+	       "实际 %d" % combo.get_segments())
+
+	# 空挥不会扣成负数
+	combo.reset_combo()
+	combo.register_hit(1)
+	combo.register_whiff(true)
+	combo.register_whiff(true)
+	_check(combo.get_segments() == 0, "20. 空挥不会扣成负数",
+	       "实际 %d" % combo.get_segments())
+
+	# 空挥可能导致降级
+	combo.reset_combo()
+	for i in 3:
+		combo.register_hit(1)            # 3 段 = E 级
+	var rank_before: String = combo.get_rank_label()
+	combo.register_whiff(false)          # 扣到 2 段
+	_check(combo.get_rank_label() != rank_before,
+	       "21. 空挥可以降级（%s → %s）" % [rank_before, combo.get_rank_label()],
+	       "评级没有变化")
+
+	# ── 12. 完美闪避加成 ──
+	combo.reset_combo()
+	combo.register_hit(1)
+	var before_pd: int = combo.get_segments()
+	combo.register_perfect_dodge()
+	_check(combo.get_segments() == before_pd + 2,
+	       "22. 完美闪避加 2 段（%d → %d）" % [before_pd, combo.get_segments()],
+	       "实际 %d" % combo.get_segments())
+
 	print("")
 	if _failures.is_empty():
 		print("PASS: 全部 %d 项通过" % _checks)

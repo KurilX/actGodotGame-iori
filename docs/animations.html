@@ -456,6 +456,38 @@
     </div>
   </section>
 
+  <!-- ─────────────── 子弹时间 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>完美闪避 · 子弹时间</h2>
+      <span class="tag">PERFECT DODGE / BULLET TIME</span>
+    </div>
+    <p class="sec-desc">
+      完美闪避原本只 emit 一个信号、<b>没有任何代码连接它</b>——玩家做对了什么也不会发生。
+      现在补上三层视觉：<b>冷蓝全屏染色</b>（暗示时间冻结）、
+      <b>放射线</b>（从角色位置向外扩散）、<b>边缘暗角</b>（收拢注意力）。
+      同时 <code>Engine.time_scale</code> 压到 0.35，持续 0.6 秒真实时间。
+    </p>
+    <div class="grid">
+      <div class="card combo wide">
+        <div class="shot"><img src="gifs/07_bullet_time.gif" alt="子弹时间"></div>
+        <div class="meta">
+          <h3>实拍：完美闪避 → 子弹时间 <span class="num">43 帧 / 3.77s</span></h3>
+          <div class="kv">
+            <b>录制方式</b> 真实游戏跑起来逐帧抓取，非摆姿势<br>
+            <b>时间流速</b> 0.35× · <b>持续</b> 0.6s 真实时间<br>
+            <b>连击加成</b> 完美闪避 <span class="hl">+2 段</span>（奖励高风险操作）
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="sec-desc" style="margin-top:20px;">
+      <b>计时必须用真实时间</b>：子弹时间会改 <code>Engine.time_scale</code>，
+      用它来算进度会让 0.6 秒的子弹时间变成 1.7 秒。录制时用
+      <code>Time.get_ticks_msec()</code> 记每帧时间戳。
+    </p>
+  </section>
+
   <footer>
     <p>
       《缀 Ori》 · Godot 4.7.2 · 像素资产由 Python 脚本程序化生成（关键帧 + 缓动）<br>

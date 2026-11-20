@@ -1,12 +1,14 @@
 extends Node
 ## 启动场景：直接进灰盒测试房，跳过菜单
 ##
-## 挂载两个 UI 层：
-##   TouchLayer  触屏虚拟按键（默认隐藏）
-##   ComboLayer  连击条（右侧，默认隐藏，有连击时出现）
+## 挂载三个 UI 层：
+##   BulletTimeLayer  子弹时间特效（layer 80，在游戏画面之上）
+##   ComboLayer       连击条（layer 90，右侧）
+##   TouchLayer       触屏虚拟按键（layer 100，默认隐藏）
 
 const TouchControls := preload("res://src/ui/touch_controls.gd")
 const ComboMeter := preload("res://src/ui/combo_meter.gd")
+const BulletTimeFx := preload("res://src/ui/bullet_time_fx.gd")
 
 
 func _ready() -> void:
@@ -14,7 +16,18 @@ func _ready() -> void:
 	var room := room_scene.instantiate()
 	add_child(room)
 
-	# ── 连击条：layer 90，在触屏按键（100）之下 ──
+	# ── 子弹时间特效：layer 80，盖在游戏画面之上、连击条之下 ──
+	var bt_layer := CanvasLayer.new()
+	bt_layer.name = "BulletTimeLayer"
+	bt_layer.layer = 80
+	add_child(bt_layer)
+
+	var bt := Control.new()
+	bt.name = "BulletTimeFx"
+	bt.set_script(BulletTimeFx)
+	bt_layer.add_child(bt)
+
+	# ── 连击条：layer 90 ──
 	var combo_layer := CanvasLayer.new()
 	combo_layer.name = "ComboLayer"
 	combo_layer.layer = 90
@@ -36,29 +49,38 @@ func _ready() -> void:
 	touch.set_script(TouchControls)
 	touch_layer.add_child(touch)
 
-	# ── 连接连击信号 ──
-	# 房间是异步建好玩家再 spawn 的，等一帧确保 player 已存在
+	# ── 连接信号 ──
 	await get_tree().process_frame
-	_connect_combo(room, combo)
+	_connect(room, combo, bt)
 
 
-func _connect_combo(room: Node, combo: Control) -> void:
+func _connect(room: Node, combo: Control, bt: Control) -> void:
 	var player := _find_player(room)
 	if player == null:
-		printerr("连击条：未找到玩家，信号未连接")
+		printerr("UI：未找到玩家，信号未连接")
 		return
 
-	# 命中敌人 → 累加段数。重攻击一段值 2 段。
+	# 命中 → 累加段数。重攻击（伤害>=4）值 2 段。
 	player.hit_landed.connect(func(_target: Node, damage: int) -> void:
-		# damage 是本次命中的伤害值。轻攻击 1~3，重攻击 5~12。
-		# 用伤害值当权重的简化版：>=4 视为重击（+2 段），否则 +1。
 		var weight := 2 if damage >= 4 else 1
 		combo.register_hit(weight)
 	)
 
-	# 玩家受伤 → 连击清零
+	# 空挥 → 扣段
+	player.whiffed.connect(func(heavy: bool) -> void:
+		combo.register_whiff(heavy)
+	)
+
+	# 受伤 → 连击清零
 	player.damaged.connect(func(_amount: int) -> void:
 		combo.reset_combo()
+	)
+
+	# 完美闪避 → 子弹时间特效 + 连击加成
+	var cam := _find_camera(player)
+	player.perfect_dodge.connect(func() -> void:
+		bt.trigger(player.global_position, cam)
+		combo.register_perfect_dodge()
 	)
 
 
@@ -67,6 +89,16 @@ func _find_player(node: Node) -> Node:
 		return node
 	for c in node.get_children():
 		var r := _find_player(c)
+		if r != null:
+			return r
+	return null
+
+
+func _find_camera(node: Node) -> Camera2D:
+	for c in node.get_children():
+		if c is Camera2D:
+			return c
+		var r := _find_camera(c)
 		if r != null:
 			return r
 	return null

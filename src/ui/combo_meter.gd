@@ -77,6 +77,47 @@ func register_hit(weight: int = 1) -> void:
 	queue_redraw()
 
 
+func register_whiff(heavy: bool = false) -> void:
+	"""空挥扣段：挥空一次扣 1 段（重攻击挥空扣 2 段）。
+
+	为什么要扣：没有惩罚的话，玩家可以对着空气连按攒满 SS，
+	评级就成了"按得久"而不是"打得准"。
+	重攻击代价更大（前摇长、收招长），挥空的惩罚也应该更重。
+	"""
+	if _segments <= 0:
+		return
+	var penalty := 2 if heavy else 1
+	_segments = maxi(0, _segments - penalty)
+	_idle = 0.0          # 挥空也算"出手"，重置超时计时
+	var nr := _rank_for(_segments)
+	if nr != _rank:
+		var old := _rank
+		_rank = nr
+		rank_changed.emit(old, nr)
+	if _segments == 0:
+		reset_combo()
+	else:
+		queue_redraw()
+
+
+func register_perfect_dodge() -> void:
+	"""完美闪避加成：给一次段数奖励，奖励高风险操作。
+
+	现在完美闪避只触发子弹时间，没有任何直接收益，
+	玩家没有动力去练。给 +2 段，让它成为攒评级的高效手段。
+	"""
+	_segments += 2
+	_idle = 0.0
+	visible = true
+	var nr := _rank_for(_segments)
+	if nr != _rank:
+		var old := _rank
+		_rank = nr
+		_pulse = 1.0
+		rank_changed.emit(old, nr)
+	queue_redraw()
+
+
 func reset_combo() -> void:
 	"""重置连击（受击 / 手动清空）。"""
 	if _segments == 0 and _rank == 0:

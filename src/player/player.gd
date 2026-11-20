@@ -129,6 +129,8 @@ signal perfect_dodge
 signal hit_landed(target: Node, damage: int)
 # 玩家受伤：连击条据此清零
 signal damaged(amount: int)
+# 空挥：一段攻击打完但没有命中任何目标
+signal whiffed(heavy: bool)
 # 刀光请求：由世界层 SlashLayer 接收并绘制，player 自己不画特效
 signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 					   radius: float, color: Color, thick: float,
@@ -304,6 +306,11 @@ func _update_attack(delta: float) -> void:
 	if t >= float(seg["dur"]):
 		_hitbox.set_active(false)
 		_set_attack_timer(0.0)
+		# 空挥判定：这一段打完了但一个目标都没碰到。
+		# 必须在这里判断（段结束时 _hit_targets 还没清空），
+		# 清空之后就再也拿不到"是否命中过"的信息了。
+		if _hit_targets.is_empty():
+			whiffed.emit(is_heavy_attack)
 		_hit_this_swing = false
 		_hit_targets.clear()
 		state = State.IDLE

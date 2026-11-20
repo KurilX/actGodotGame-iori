@@ -148,6 +148,29 @@ func _spawn_dummy(pos: Vector2) -> void:
 	add_child(node)
 
 
+func _spawn_enemy(kind: String, pos: Vector2) -> void:
+	"""生成敌人。用 CharacterBody2D + 对应脚本动态创建，
+	这样不用为每个敌人都做一个 .tscn 场景文件。"""
+	var script_path := "res://src/enemies/%s.gd" % kind
+	if not ResourceLoader.exists(script_path):
+		printerr("敌人脚本不存在: " + script_path)
+		return
+	var body := CharacterBody2D.new()
+	body.set_script(load(script_path))
+	body.position = pos
+	body.name = kind.capitalize()
+
+	# 碰撞体（敌人本体，用于与地形阻挡）
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(18, 20)
+	cs.shape = rect
+	cs.position = Vector2(0, -10)
+	body.add_child(cs)
+
+	add_child(body)
+
+
 func _spawn_player() -> void:
 	var player_scene: PackedScene = load("res://scenes/player/player.tscn")
 	var player := player_scene.instantiate()
@@ -170,9 +193,16 @@ func _spawn_player() -> void:
 			else:
 				slash.spawn(origin, player.get_combo_index(), facing))
 
-	# 训练木桩：放在出生点右侧，验证攻击连段
-	_spawn_dummy(Vector2(320, 480))
-	_spawn_dummy(Vector2(430, 480))
+	# 训练木桩保留一个（用来试连段手感，不会还手）
+	_spawn_dummy(Vector2(300, 480))
+
+	# 三个实际敌人，分布在不同距离以展示不同的战斗节奏：
+	#   苔团（近战教学）在较近处，一进场就能遇到
+	#   灯笼虫（飞行）在中距离空中，需要主动追
+	#   石守（重甲）在较远处，作为"关底"级别的对手
+	_spawn_enemy("mossling", Vector2(400, 470))
+	_spawn_enemy("lanternbug", Vector2(560, 430))
+	_spawn_enemy("stonepaw", Vector2(720, 470))
 
 	# 摄像机跟随玩家，限制在房间内
 	var cam := Camera2D.new()

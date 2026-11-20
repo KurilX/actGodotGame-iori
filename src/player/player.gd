@@ -164,6 +164,8 @@ func _ready() -> void:
 		shape.size = Vector2(24, 40)
 	# 碰撞盒中心上移到腿部，让脚贴地面
 	$CollisionShape2D.position = Vector2(0, -20)
+	# 加入 player 组：敌人靠这个组找到玩家
+	add_to_group("player")
 	_hitbox.hit_landed.connect(_on_hit_landed)
 	_play_anim("idle")
 

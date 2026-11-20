@@ -26,6 +26,14 @@ func _init() -> void:
 		quit(1)
 		return
 
+	# 房间里在加入敌人后，测试闪避/完美闪避期间会被敌人打断。
+	# 这里把敌人移开（不是关掉，只是挪出交互范围），
+	# 让本测试专注于玩家自身的战斗逻辑。
+	var enemies := get_nodes_in_group("enemy")
+	for e in enemies:
+		e.global_position = Vector2(2000, 2000)
+		e.set_physics_process(false)
+
 	await _settle(player, 90)
 
 	print("── 战斗系统冒烟测试 ──")

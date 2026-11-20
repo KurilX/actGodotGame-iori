@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>《缀》动画资产展示</title>
+<style>
+  :root {
+    --bg: #0d0f1e;
+    --panel: #161a2e;
+    --panel-2: #1b2140;
+    --line: #2a3358;
+    --text: #c8d6e8;
+    --dim: #6d7a9c;
+    --accent: #a8e8c6;
+    --accent-2: #ffb04a;
+    --accent-3: #ff5a6e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 0 80px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    padding: 48px 32px 32px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #141832 0%, var(--bg) 100%);
+  }
+  header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--accent);
+  }
+  header p {
+    margin: 0;
+    color: var(--dim);
+    font-size: 13px;
+    max-width: 760px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  header .wrap { padding: 0; }
+
+  /* 动画树：分区 */
+  section { margin-top: 56px; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    color: #e4eef8;
+  }
+  .sec-head .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    color: var(--dim);
+    letter-spacing: .05em;
+  }
+  .sec-desc {
+    margin: 12px 0 24px;
+    color: var(--dim);
+    font-size: 13px;
+    max-width: 820px;
+  }
+  .sec-desc code {
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+    font-size: 12px;
+  }
+
+  /* 卡片网格 */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color .18s, transform .18s;
+  }
+  .card:hover {
+    border-color: #3d4a7a;
+    transform: translateY(-2px);
+  }
+  .card .shot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #12142a;
+    padding: 10px 0;
+    min-height: 200px;
+  }
+  .card img {
+    display: block;
+    width: 210px;
+    height: 210px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  /* 连段卡：横跨两列。保持与其他卡一致的「上图下文」结构，
+     只把 GIF 放大，避免横向布局带来的裁切问题。 */
+  .card.wide { grid-column: span 2; }
+  .card.wide .shot { min-height: 300px; }
+  .card.wide img { width: 280px; height: 280px; }
+  .card.wide .meta { max-width: 640px; }
+
+  .card .meta { padding: 12px 14px 14px; }
+  .card h3 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #dfe9f5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 .num {
+    font-size: 11px;
+    color: var(--dim);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  .card .kv {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.7;
+  }
+  .card .kv b {
+    color: #9aabcc;
+    font-weight: 500;
+  }
+  .card .kv .hl { color: var(--accent-2); }
+
+  /* 分类色条 */
+  .card.light h3::before,
+  .card.heavy h3::before,
+  .card.move h3::before,
+  .card.combo h3::before {
+    content: "";
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    flex: 0 0 auto;
+  }
+  .card.move h3::before  { background: var(--accent); }
+  .card.light h3::before { background: #9ad8f0; }
+  .card.heavy h3::before { background: var(--accent-2); }
+  .card.combo h3::before { background: var(--accent-3); }
+
+  /* 页脚 */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 12px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* 顶部信息条 */
+  .statbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin-top: 24px;
+  }
+  .stat { }
+  .stat .n {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .l {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: .05em;
+  }
+
+  @media (max-width: 640px) {
+    .card.wide { grid-column: span 1; }
+    header { padding: 32px 20px 24px; }
+    .wrap { padding: 0 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>《缀》动画资产展示</h1>
+    <p>
+      按游戏内的动画树划分。所有 GIF 都还原了<b>真实的帧时长</b>——攻击帧由判定进度驱动，
+      不是匀速播放，命中帧停留最久；刀光按实际位置合成到命中窗口。
+    </p>
+    <div class="statbar">
+      <div class="stat"><div class="n">12</div><div class="l">动画序列</div></div>
+      <div class="stat"><div class="n">76</div><div class="l">角色总帧数</div></div>
+      <div class="stat"><div class="n">80×80</div><div class="l">单帧尺寸</div></div>
+      <div class="stat"><div class="n">28</div><div class="l">限定色板</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ─────────────── 待机 / 移动 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>待机与移动</h2>
+      <span class="tag">IDLE / RUN / DASH</span>
+    </div>
+    <p class="sec-desc">
+      待机升级为 <b>8 帧呼吸循环</b>（原 4 帧）。呼吸感来自多维度同步变化：
+      身体起伏 <code>body_dy</code>、膝盖微屈 <code>crouch</code>、剑随呼吸轻摆。
+      实测身高变化 49 → 52 → 49 px，先升后降才是呼吸曲线。
+    </p>
+    <div class="grid">
+      <div class="card move">
+        <div class="shot"><img src="gifs/01_idle.gif" alt="待机"></div>
+        <div class="meta">
+          <h3>待机 <span class="num">8 帧 / 8 fps</span></h3>
+          <div class="kv">
+            <b>循环</b> 是 · <b>时长</b> 1000ms<br>
+            <b>身高</b> <span class="hl">49 → 52 → 49</span><br>
+            起伏 + 微屈膝 + 剑轻摆
+          </div>
+        </div>
+      </div>
+      <div class="card move">
+        <div class="shot"><img src="gifs/02_run.gif" alt="跑动"></div>
+        <div class="meta">
+          <h3>跑动 <span class="num">8 帧 / 12 fps</span></h3>
+          <div class="kv">
+            <b>循环</b> 是 · <b>时长</b> 664ms<br>
+            <b>周期</b> 左右各半，镜像生成<br>
+            身体起伏 + 蹬地屈膝
+          </div>
+        </div>
+      </div>
+      <div class="card move">
+        <div class="shot"><img src="gifs/04_dash.gif" alt="闪避"></div>
+        <div class="meta">
+          <h3>闪避 <span class="num">3 帧 / 15 fps</span></h3>
+          <div class="kv">
+            <b>循环</b> 否 · <b>时长</b> 198ms<br>
+            <b>速度</b> 300 px/s · <b>无敌</b> 0.16s<br>
+            完美闪避窗口 0.12s
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 跳跃落地流程 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>跳跃 → 落地流程</h2>
+      <span class="tag">JUMP → FALL → LAND</span>
+    </div>
+    <p class="sec-desc">
+      落地从 <b>2 帧扩到 6 帧</b>，这是"重量感"的关键瞬间。四层设计：
+      第 1 帧就压到最深（<code>crouch=0.85</code>）→ 双脚外张吸收冲击 →
+      <b>回弹过冲</b>（弹到比站立更高）→ 剑手滞后一帧。
+      实测身高 <span style="color:#ffb04a">43 → 50 px</span>，变化 7px。
+    </p>
+    <div class="grid">
+      <div class="card move wide">
+        <div class="shot"><img src="gifs/03_jump_land.gif" alt="跳跃落地"></div>
+        <div class="meta">
+          <h3>完整流程 <span class="num">9 帧 / 960ms</span></h3>
+          <div class="kv">
+            <b>跳跃</b> 3 帧（顶点滞空 220ms） · <b>落地</b> 6 帧屈膝缓冲<br>
+            <b>跳跃初速</b> -360 · <b>重力</b> 1350 · <b>土狼时间</b> 0.10s<br>
+            落地前两帧停留更久，强化"砸下去"的分量
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 轻攻击四连 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>轻攻击 · 四连</h2>
+      <span class="tag">ATK1 → ATK2 → ATK3 → ATK4</span>
+    </div>
+    <p class="sec-desc">
+      每段 6 帧，但<b>帧时长不均匀</b>——由判定进度驱动：命中帧
+      （<code>progress 0.42~0.72</code>）占时长 30%，起手只占 12%。
+      四段动作完全不同：上挑 / 横斩 / 突刺 / 跳劈。
+      段内 55% 后可取消接下一段，段后 0.55s 内可衔接。
+    </p>
+    <div class="grid">
+      <div class="card light">
+        <div class="shot"><img src="gifs/05_light_1.gif" alt="轻1上挑"></div>
+        <div class="meta">
+          <h3>第 1 段 · 上挑 <span class="num">6 帧 / 240ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 1 · <b>前冲</b> 10 · <b>判定框</b> 22×18<br>
+            剑角 100° → -105° 竖直上撩
+          </div>
+        </div>
+      </div>
+      <div class="card light">
+        <div class="shot"><img src="gifs/05_light_2.gif" alt="轻2横斩"></div>
+        <div class="meta">
+          <h3>第 2 段 · 横斩 <span class="num">6 帧 / 219ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 1 · <b>前冲</b> 6 · <b>判定框</b> 24×18<br>
+            大跨步横扫，剑扫 150°
+          </div>
+        </div>
+      </div>
+      <div class="card light">
+        <div class="shot"><img src="gifs/05_light_3.gif" alt="轻3突刺"></div>
+        <div class="meta">
+          <h3>第 3 段 · 突刺 <span class="num">6 帧 / 300ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 2 · <b>前冲</b> 4 · <b>判定框</b> 26×26<br>
+            极限前倾 lean=9，剑走直线
+          </div>
+        </div>
+      </div>
+      <div class="card light">
+        <div class="shot"><img src="gifs/05_light_4.gif" alt="轻4跳劈"></div>
+        <div class="meta">
+          <h3>第 4 段 · 跳劈 <span class="num">6 帧 / 360ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 3 · <b>前冲</b> 26 · <b>判定框</b> 30×30<br>
+            动画腾空，物理层不跳
+          </div>
+        </div>
+      </div>
+      <div class="card combo wide">
+        <div class="shot"><img src="gifs/05_light_combo.gif" alt="轻攻击连段"></div>
+        <div class="meta">
+          <h3>完整四连 <span class="num">24 帧 / 1119ms</span></h3>
+          <div class="kv">
+            <b>总伤害</b> 7（1+1+2+3） · <b>取消窗口</b> 55%<br>
+            <b>衔接窗口</b> 0.55s · 打完回第 1 段，可无限连<br>
+            按住攻击键持续连打
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 重攻击三连 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>重攻击 · 三连</h2>
+      <span class="tag">HEAVY1 → HEAVY2 → HEAVY3</span>
+    </div>
+    <p class="sec-desc">
+      不是轻攻击的数值放大，是<b>另一套战斗节奏</b>：每段 8 帧但时长 0.55~0.85s
+      （轻攻击 0.22~0.36s），有明显蓄力前摇。刀光换成暖橙金、更粗更大，
+      并叠了一层"残影"做出双层结构。第 3 段打完<b>不循环</b>，需重新起手。
+    </p>
+    <div class="grid">
+      <div class="card heavy">
+        <div class="shot"><img src="gifs/06_heavy_1.gif" alt="重1蓄力横扫"></div>
+        <div class="meta">
+          <h3>第 1 段 · 蓄力横扫 <span class="num">8 帧 / 550ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 5 · <b>前冲</b> 22 · <b>判定框</b> 34×30<br>
+            <b>前摇</b> 0.20s · 扭身蓄力 3 帧
+          </div>
+        </div>
+      </div>
+      <div class="card heavy">
+        <div class="shot"><img src="gifs/06_heavy_2.gif" alt="重2上挑重斩"></div>
+        <div class="meta">
+          <h3>第 2 段 · 上挑重斩 <span class="num">8 帧 / 619ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 7 · <b>前冲</b> 14 · <b>判定框</b> 30×42<br>
+            <b>前摇</b> 0.22s · 剑撩到 -125°
+          </div>
+        </div>
+      </div>
+      <div class="card heavy">
+        <div class="shot"><img src="gifs/06_heavy_3.gif" alt="重3泰山压顶"></div>
+        <div class="meta">
+          <h3>第 3 段 · 泰山压顶 <span class="num">8 帧 / 850ms</span></h3>
+          <div class="kv">
+            <b>伤害</b> 12 · <b>前冲</b> 30 · <b>判定框</b> 40×36<br>
+            <b>顿帧</b> 0.14s · <b>震屏</b> 5.0
+          </div>
+        </div>
+      </div>
+      <div class="card combo wide">
+        <div class="shot"><img src="gifs/06_heavy_combo.gif" alt="重攻击连段"></div>
+        <div class="meta">
+          <h3>完整三连 <span class="num">24 帧 / 2019ms</span></h3>
+          <div class="kv">
+            <b>总伤害</b> 24（5+7+12） · <b>取消窗口</b> 92%（几乎不能取消）<br>
+            <b>耗时</b> 2.0s，是轻攻击四连的 1.8 倍<br>
+            打完收招，需重新起手 → "重"才有代价
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 轻重对比 ─────────────── -->
+  <section>
+    <div class="sec-head">
+      <h2>轻重对比</h2>
+      <span class="tag">DESIGN RATIONALE</span>
+    </div>
+    <p class="sec-desc">
+      两套连段的定位差异，体现在时长、伤害、取消规则和反馈强度上。
+    </p>
+    <div class="grid" style="grid-template-columns: 1fr;">
+      <div class="card" style="padding: 20px 22px;">
+        <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--line);">
+              <th style="text-align:left; padding:8px 0; color:var(--dim); font-weight:500;">维度</th>
+              <th style="text-align:left; padding:8px 0; color:#9ad8f0; font-weight:500;">轻攻击</th>
+              <th style="text-align:left; padding:8px 0; color:var(--accent-2); font-weight:500;">重攻击</th>
+            </tr>
+          </thead>
+          <tbody style="color:#b6c4dc;">
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">段数</td><td>4 连</td><td>3 连</td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">单段时长</td><td>0.22 – 0.36s</td><td><span style="color:var(--accent-2)">0.55 – 0.85s</span></td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">总伤害</td><td>7</td><td><span style="color:var(--accent-2)">24</span></td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">判定框</td><td>22×18 – 30×30</td><td><span style="color:var(--accent-2)">34×30 – 40×36</span></td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">收招</td><td>循环回第 1 段</td><td>打完收手，需重新起手</td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">取消窗口</td><td>55%</td><td><span style="color:var(--accent-2)">92%</span>（几乎不能取消）</td></tr>
+            <tr style="border-bottom:1px solid #1e2440;"><td style="padding:9px 0;color:var(--dim)">顿帧</td><td>0.04s</td><td><span style="color:var(--accent-2)">0.08 – 0.14s</span></td></tr>
+            <tr><td style="padding:9px 0;color:var(--dim)">刀光</td><td>冷蓝细弧</td><td>橙金粗弧 + 双层残影</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      《缀 Ori》 · Godot 4.7.2 · 像素资产由 Python 脚本程序化生成（关键帧 + 缓动）<br>
+      在线试玩：<a href="https://kurilx.github.io/actGodotGame-iori/" target="_blank" rel="noopener">https://kurilx.github.io/actGodotGame-iori/</a>
+      　·　源码：<a href="https://github.com/KurilX/actGodotGame-iori" target="_blank" rel="noopener">GitHub</a>
+    </p>
+    <p style="margin-top:14px; color:#4a5470;">
+      GIF 由 <code style="color:#5f6b88">tools/make_showcase_gifs.py</code> 生成。
+      帧时长按 player.gd 里的判定进度阈值反算，不是固定 fps —— 所以命中帧的停顿是真实的。
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

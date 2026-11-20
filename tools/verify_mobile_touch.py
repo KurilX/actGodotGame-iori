@@ -23,11 +23,12 @@ MOBILE = {
 # 与 src/ui/touch_controls.gd 的 _build_buttons 保持一致
 # 视口 480x270 → 屏幕比例坐标
 BTN = {
-    "left": (0.0875, 0.8000),
-    "right": (0.2333, 0.8000),
-    "dash": (0.7333, 0.5481),
-    "jump": (0.8292, 0.7630),
-    "attack": (0.9375, 0.6222),
+    "left": (0.0833, 0.8000),
+    "right": (0.2208, 0.8000),
+    "dash": (0.6958, 0.5556),
+    "jump": (0.7792, 0.7704),
+    "attack": (0.8917, 0.7704),
+    "heavy": (0.8958, 0.5259),
 }
 
 
@@ -162,6 +163,24 @@ def main():
             print("  FAIL 点击攻击键后画面无变化")
 
         page.screenshot(path="art/screenshots/mobile_touch_03_attack.png")
+
+        # ── 测试 2b：点击重击键，画面应变化（更长时间的挥砍）──
+        hx, hy = pos("heavy")
+        page.wait_for_timeout(900)
+        before_h = page.screenshot()
+        touch_start(hx, hy, 2)
+        page.wait_for_timeout(500)
+        touch_end()
+        page.wait_for_timeout(200)
+        after_h = page.screenshot()
+        heavied = before_h != after_h
+        if heavied:
+            print("  ok   点击重击键后画面发生变化（重攻击生效）")
+        else:
+            failures.append("点击重击键后画面无变化")
+            print("  FAIL 点击重击键后画面无变化")
+
+        page.screenshot(path="art/screenshots/mobile_touch_05_heavy.png")
 
         # ── 测试 3：多点触控（左移 + 攻击同时） ──
         lx, ly = pos("left")

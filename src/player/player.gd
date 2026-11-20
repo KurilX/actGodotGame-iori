@@ -127,6 +127,8 @@ var _dash_invuln := 0.0
 # 全局时间缩放（子弹时间由 main 控制，这里只发信号）
 signal perfect_dodge
 signal hit_landed(target: Node, damage: int)
+# 玩家受伤：连击条据此清零
+signal damaged(amount: int)
 # 刀光请求：由世界层 SlashLayer 接收并绘制，player 自己不画特效
 signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 					   radius: float, color: Color, thick: float,
@@ -760,6 +762,7 @@ func take_damage(amount: int, from_x: float) -> void:
 
 	_hearts -= amount
 	_invuln = INVULN_TIME
+	damaged.emit(amount)
 	_hurt_timer = HURT_STUN
 	state = State.HURT
 

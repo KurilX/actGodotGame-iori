@@ -37,6 +37,8 @@ var facing := -1
 
 var _timer := 0.0
 var _cooldown := 0.0
+const FLASH_DURATION := 0.14   # 受击染色持续时间
+
 var _flash := 0.0
 var _hurt_duration := 0.12     # 本次硬直的初始时长（用于把 hurt 动画映射到硬直时间段）
 var _player: Node2D = null
@@ -139,6 +141,7 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	move_and_slide()
 	_sync_anim()
+	_sync_hit_tint()
 
 
 func _tick(delta: float) -> void:
@@ -279,7 +282,7 @@ func take_hit(amount: int, from_x: float) -> void:
 	if state == State.DEAD:
 		return
 	hp -= amount
-	_flash = 0.14
+	_flash = FLASH_DURATION
 
 	# 被击退
 	var dir := signf(global_position.x - from_x)
@@ -371,11 +374,38 @@ func get_hp() -> int:
 	return hp
 
 
-func _draw() -> void:
-	# 受击闪白：在身体位置画一个半透明白色矩形
+func _sync_hit_tint() -> void:
+	"""受击染色：把整个精灵染红，而不是在旁边画一个矩形。
+
+	为什么不用 draw_rect：
+	  早期是在身体位置画半透明白矩形，问题有两个 ——
+	  ① 矩形是方的，会盖住比身形更大的区域（尤其飞行单位）；
+	  ② 白色闪一下在夜景里辨识度低，看着像"亮了一下"而不是"被打中"。
+
+	改用 modulate 乘算：红色 (2.2, 0.45, 0.45) 乘上原色，
+	整体偏红且压暗，像素轮廓完全保留（不改变形状，只改颜色），
+	是像素游戏表现受击的通行做法。
+	"""
+	if _anim == null:
+		return
 	if _flash > 0.0:
-		var w := 20.0
-		var h := 30.0
-		draw_rect(Rect2(-w * 0.5, -h, w, h),
-				  Color(1, 1, 1, 0.35 * (_flash / 0.14)))
-		queue_redraw()
+		var t := _flash / FLASH_DURATION          # 1.0 → 0.0
+		# 起始最红，随后快速回落。
+		#
+		# **踩过的坑**：一开始用 R 增益（>1.0）+ G/B 压暗的乘算，
+		# 绿色敌人被乘成了黄褐色（绿 × 红 = 黄），看着像中毒不像受击。
+		# 乘算没法把色相真正推向红色，只能调整亮度比。
+		#
+		# 正确做法：用「自照明」思路 —— 让精灵本身发出的光偏红。
+		# 在 CanvasItem 上开自调制（self_modulate 之外）不改变原色相，
+		# 而是叠加一个红色发光层：把 modulate 的 R 保持高水平、
+		# G/B 压到接近 0，同时**大幅提高亮度**，让暗部也被红光照亮。
+		# 这样原本的绿色只剩极弱的痕迹，整体读起来是"红了的敌人"。
+		var k := t ** 0.7
+		_anim.modulate = Color(
+			1.0 + 2.6 * k,      # R 强增益：让红色占绝对主导
+			1.0 - 0.94 * k,     # G 几乎归零：抹掉绿色
+			1.0 - 0.90 * k      # B 几乎归零
+		)
+	else:
+		_anim.modulate = Color(1, 1, 1, 1)

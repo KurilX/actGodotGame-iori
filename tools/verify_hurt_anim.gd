@@ -22,8 +22,12 @@ func _init() -> void:
 
 	print("── 敌人硬直动画验证 ──")
 
-	var enemies := get_nodes_in_group("enemy")
-	_check(enemies.size() == 3, "0. 找到 3 个敌人",
+	# 排除 BOSS（它有自己的受伤表现，且有独立的 verify_boss.gd）
+	var enemies := []
+	for e in get_nodes_in_group("enemy"):
+		if e.get("max_hp") != 120:
+			enemies.append(e)
+	_check(enemies.size() == 3, "0. 找到 3 个杂兵",
 	       "实际 %d 个" % enemies.size())
 
 	# 三个敌人都要有 hurt 动画资源

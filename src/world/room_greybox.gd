@@ -5,6 +5,11 @@ extends Node2D
 ## 场景里的地形全部由本脚本按数据生成，改数据即可改关卡。
 ## 尺寸按规范：单房间 960 x 540（2 屏宽 x 2 屏高，视口 480x270）
 
+# BOSS 生成后发出，供 UI 层连接血条
+signal boss_spawned(boss: Node2D)
+
+var boss: Node2D = null
+
 const ROOM_W := 960
 const ROOM_H := 540
 
@@ -157,6 +162,32 @@ func _spawn_enemy(kind: String, pos: Vector2) -> void:
 	add_child(body)
 
 
+func _spawn_boss(pos: Vector2) -> void:
+	"""生成 BOSS。
+
+	BOSS 的碰撞体是矩形（不是和杂兵一样的 18x20），
+	因为它的体型是杂兵的 3 倍。碰撞体尺寸影响玩家能不能跳过它。
+	"""
+	var script_path := "res://src/enemies/boss_warden.gd"
+	if not ResourceLoader.exists(script_path):
+		printerr("BOSS 脚本不存在: " + script_path)
+		return
+	var body := CharacterBody2D.new()
+	body.set_script(load(script_path))
+	body.position = pos
+	body.name = "BossWarden"
+
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(40, 88)        # 覆盖身体 + 头，玩家跳不过去
+	cs.shape = rect
+	cs.position = Vector2(0, -44)
+	body.add_child(cs)
+
+	add_child(body)
+	boss = body
+
+
 func _spawn_player() -> void:
 	var player_scene: PackedScene = load("res://scenes/player/player.tscn")
 	var player := player_scene.instantiate()
@@ -182,13 +213,15 @@ func _spawn_player() -> void:
 	# 训练木桩保留一个（用来试连段手感，不会还手）
 	_spawn_dummy(Vector2(300, 480))
 
-	# 三个实际敌人，分布在不同距离以展示不同的战斗节奏：
-	#   苔团（近战教学）在较近处，一进场就能遇到
-	#   灯笼虫（飞行）在中距离空中，需要主动追
-	#   石守（重甲）在较远处，作为"关底"级别的对手
-	_spawn_enemy("mossling", Vector2(400, 470))
-	_spawn_enemy("lanternbug", Vector2(560, 430))
-	_spawn_enemy("stonepaw", Vector2(720, 470))
+	# 三种杂兵分布在前半段，作为 BOSS 前的热身：
+	# 玩家从左往右推进，会依次遇到弹跳、飞行、重甲三种威胁，
+	# 走到底就是 BOSS。
+	_spawn_enemy("mossling", Vector2(140, 470))
+	_spawn_enemy("lanternbug", Vector2(300, 430))
+	_spawn_enemy("stonepaw", Vector2(460, 470))
+
+	# BOSS「瓷面的守夜人」：站在房间右侧
+	_spawn_boss(Vector2(760, 468))
 
 	# 摄像机跟随玩家，限制在房间内
 	var cam := Camera2D.new()

@@ -9,6 +9,7 @@ extends Node
 const TouchControls := preload("res://src/ui/touch_controls.gd")
 const ComboMeter := preload("res://src/ui/combo_meter.gd")
 const BulletTimeFx := preload("res://src/ui/bullet_time_fx.gd")
+const BossHealthBar := preload("res://src/ui/boss_healthbar.gd")
 
 
 func _ready() -> void:
@@ -26,6 +27,17 @@ func _ready() -> void:
 	bt.name = "BulletTimeFx"
 	bt.set_script(BulletTimeFx)
 	bt_layer.add_child(bt)
+
+	# ── BOSS 血条：layer 85 ──
+	var boss_layer := CanvasLayer.new()
+	boss_layer.name = "BossBarLayer"
+	boss_layer.layer = 85
+	add_child(boss_layer)
+
+	var bossbar := Control.new()
+	bossbar.name = "BossHealthBar"
+	bossbar.set_script(BossHealthBar)
+	boss_layer.add_child(bossbar)
 
 	# ── 连击条：layer 90 ──
 	var combo_layer := CanvasLayer.new()
@@ -51,6 +63,7 @@ func _ready() -> void:
 
 	# ── 连接信号 ──
 	await get_tree().process_frame
+	_connect_boss(room, bossbar)
 	_connect(room, combo, bt)
 
 
@@ -82,6 +95,46 @@ func _connect(room: Node, combo: Control, bt: Control) -> void:
 		bt.trigger(player.global_position, cam)
 		combo.register_perfect_dodge()
 	)
+
+
+func _connect_boss(room: Node, bossbar: Control) -> void:
+	"""连接 BOSS 血条。
+
+	BOSS 是在 room 的 _ready 里异步 spawn 的，所以要等一下。
+	"""
+	var boss: Node = room.get("boss")
+	if boss == null:
+		# 再等一帧试试（room 可能在 _spawn_boss 前还没赋值）
+		await get_tree().process_frame
+		boss = room.get("boss")
+	if boss == null:
+		printerr("BOSS 血条：未找到 BOSS")
+		return
+
+	bossbar.show_boss("瓷面的守夜人")
+	bossbar.set_hp(1.0)
+
+	# 血量变化 → 更新血条
+	# 用轮询而不是信号：hp 是普通变量，BOSS 内部改它时不发信号
+	bossbar.set_process(true)
+	var update := func() -> void:
+		if boss == null or not is_instance_valid(boss):
+			bossbar.hide_boss()
+			return
+		var ratio: float = float(boss.get("hp")) / float(boss.get("max_hp"))
+		bossbar.set_hp(ratio)
+		var ph: int = boss.get("phase")
+		if ph != bossbar.get_phase():
+			bossbar.set_phase(ph)
+	# 每帧更新（开销极小，只有一个浮点除法）
+	bossbar.set_meta("updater", update)
+
+	# 用 _process 驱动
+	var timer := Timer.new()
+	timer.wait_time = 0.05
+	timer.autostart = true
+	timer.timeout.connect(update)
+	bossbar.add_child(timer)
 
 
 func _find_player(node: Node) -> Node:

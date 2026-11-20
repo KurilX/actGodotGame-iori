@@ -23,6 +23,15 @@ func _init() -> void:
 		quit(1)
 		return
 
+	# 房间里有 BOSS 和杂兵，它们会主动攻击玩家，打断本测试关注的
+	# 玩家自身行为（跳跃/攻击/受伤）。把它们全部挪走并停掉 AI，
+	# 让冒烟测试只测玩家。这是"测试环境隔离"，不是功能问题。
+	for e in get_nodes_in_group("enemy"):
+		e.global_position = Vector2(5000, 5000)
+		e.set_physics_process(false)
+	for pj in get_nodes_in_group("projectile"):
+		pj.queue_free()
+
 	print("── 《缀》灰盒冒烟测试 ──")
 	print("viewport      = %sx%s" % [
 		ProjectSettings.get_setting("display/window/size/viewport_width"),

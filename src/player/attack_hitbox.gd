@@ -6,6 +6,8 @@ extends Area2D
 ##   所以判定框用可见的 CollisionShape2D，调试时能画出来看。
 
 signal hit_landed(target: Node, damage: int, from_x: float)
+# 弹反：攻击判定碰到可弹反的弹幕时发出
+signal parried(projectile: Node)
 
 const GROUP_HURTABLE := "hurtable"
 
@@ -61,12 +63,38 @@ func set_reach(width: float, height: float, offset_x: float, offset_y: float) ->
 func _on_area_entered(area: Area2D) -> void:
 	if not active:
 		return
+	# 弹幕优先：攻击判定碰到可弹反的弹幕时，把它打回去。
+	# 注意要「优先」处理 —— 弹幕和敌人可能同时重叠，
+	# 如果先走 _emit，弹幕会被当成普通目标忽略掉。
+	if _try_parry(area):
+		return
 	if area.is_in_group(GROUP_HURTABLE):
 		_emit(area)
 
 
+func _try_parry(node: Node) -> bool:
+	"""尝试弹反。返回 true 表示已处理（调用方不再走普通命中逻辑）。"""
+	if not node.is_in_group("projectile"):
+		return false
+	if not node.has_method("reflect"):
+		return false
+	# 已弹反的弹幕不再重复处理，避免自己打自己
+	if node.has_method("is_reflected") and node.is_reflected():
+		return false
+	# 不可弹反的弹幕（红弹）：打不掉，原样穿过去伤害玩家
+	var reflectable = node.get("reflectable")
+	if reflectable is bool and not reflectable:
+		return false
+
+	node.reflect()
+	parried.emit(node)
+	return true
+
+
 func _on_body_entered(body: Node2D) -> void:
 	if not active:
+		return
+	if _try_parry(body):
 		return
 	if body.is_in_group(GROUP_HURTABLE):
 		_emit(body)

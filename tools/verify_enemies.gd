@@ -24,8 +24,14 @@ func _init() -> void:
 	print("── 敌人系统验证 ──")
 	print("")
 
-	_check(enemies.size() == 3, "1. 房间里有 3 个敌人",
-	       "实际 %d 个" % enemies.size())
+	# 排除 BOSS（BOSS 有独立的 verify_boss.gd 覆盖），这里只测三种杂兵
+	var minions := []
+	for e in enemies:
+		if e.get("max_hp") != 120:
+			minions.append(e)
+	_check(minions.size() == 3, "1. 房间里有 3 种杂兵",
+	       "实际 %d 个" % minions.size())
+	enemies = minions
 
 	# 按名字归类
 	var by_name := {}

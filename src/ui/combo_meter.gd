@@ -55,6 +55,12 @@ const C_TEXT := Color("#D8F0F8")
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# 只设锚点不够：offset 会保留原值，Control 尺寸可能变成 (0,0)，
+	# 导致 draw_* 被裁剪。必须显式清零。
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# 初始隐藏：没有连击时不占用屏幕
 	visible = false

@@ -82,63 +82,49 @@ func _build_one_way() -> void:
 
 
 func _build_visuals() -> void:
-	# 背景
-	var bg := ColorRect.new()
-	bg.color = Color("#1B2244")
-	bg.position = Vector2(0, 0)
-	bg.size = Vector2(ROOM_W, ROOM_H)
-	bg.z_index = -10
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	# ── 三层场景美术（art/scene/ 下由 tools/make_scene_art.py 生成）──
+	#
+	# z_index 分层：
+	#   sky     -20  夜空 + 远山 + 月亮
+	#   terrain -10  石台（有顶面明暗、砖缝、苔藓）
+	#   deco     -2  草丛 / 紫藤 / 灯笼（在地形之上、角色之下）
+	#
+	# 三张图都是 960x540 全屏尺寸，直接 Sprite2D 贴上，
+	# 位置放在房间原点、centered=false。
+	#
+	# 为什么要换成贴图而不是继续用 Polygon2D：
+	# 灰盒的纯色块拼不出石块纹理、苔藓边缘、月光光晕这些细节，
+	# 而程序化生成贴图可以精确控制到像素，且能复用同一套调色板。
+	var layers := [
+		["sky", -20],
+		["terrain", -10],
+		["deco", -2],
+	]
+	for entry in layers:
+		var lname: String = entry[0]
+		var z: int = entry[1]
+		var path := "res://art/scene/%s.png" % lname
+		if not ResourceLoader.exists(path):
+			# 缺素材时退回纯色底，避免房间一片黑
+			printerr("场景素材缺失: %s（先跑 tools/make_scene_art.py）" % path)
+			if lname == "sky":
+				var bg := ColorRect.new()
+				bg.color = Color("#1B2244")
+				bg.position = Vector2.ZERO
+				bg.size = Vector2(ROOM_W, ROOM_H)
+				bg.z_index = z
+				bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				add_child(bg)
+			continue
 
-	# 远景剪影
-	var far := Polygon2D.new()
-	far.polygon = PackedVector2Array([
-		Vector2(0, 400), Vector2(120, 300), Vector2(240, 380),
-		Vector2(360, 260), Vector2(520, 360), Vector2(680, 280),
-		Vector2(820, 370), Vector2(960, 320), Vector2(960, 540), Vector2(0, 540),
-	])
-	far.color = Color("#232E52")
-	far.z_index = -5
-	add_child(far)
-
-	# 实心地形：暗色块 + 顶部草皮亮边
-	for r in SOLIDS:
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(r[0], r[1]),
-			Vector2(r[0] + r[2], r[1]),
-			Vector2(r[0] + r[2], r[1] + r[3]),
-			Vector2(r[0], r[1] + r[3]),
-		])
-		poly.color = Color("#5A6478")
-		poly.z_index = -1
-		add_child(poly)
-
-		var top := Polygon2D.new()
-		top.polygon = PackedVector2Array([
-			Vector2(r[0], r[1]),
-			Vector2(r[0] + r[2], r[1]),
-			Vector2(r[0] + r[2], r[1] + 3),
-			Vector2(r[0], r[1] + 3),
-		])
-		top.color = Color("#6E9A6B")
-		top.z_index = 0
-		add_child(top)
-
-	# 单向平台：薄板
-	for r in ONE_WAY:
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(r[0], r[1]),
-			Vector2(r[0] + r[2], r[1]),
-			Vector2(r[0] + r[2], r[1] + 6),
-			Vector2(r[0], r[1] + 6),
-		])
-		poly.color = Color("#7B8699")
-		poly.z_index = 0
-		add_child(poly)
-
+		var spr := Sprite2D.new()
+		spr.name = "Scene_" + lname
+		spr.texture = load(path)
+		spr.centered = false          # 左上角对齐房间原点
+		spr.position = Vector2.ZERO
+		spr.z_index = z
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(spr)
 
 func _spawn_dummy(pos: Vector2) -> void:
 	var script: GDScript = load("res://src/world/training_dummy.gd")

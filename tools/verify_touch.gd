@@ -39,8 +39,11 @@ func _init() -> void:
 		quit(1)
 		return
 
-	# 桌面环境下 DisplayServer.is_touchscreen_available() 为 false，
-	# 所以这里手动置为可见来验证布局与命中逻辑
+	# 按键现在**默认隐藏**（仅 URL ?touch=1 / 命令行 --touch / F2 打开）。
+	# 这里先断言默认确实是关的，再手动打开验证布局与命中逻辑。
+	_check(not touch.visible, "0. 默认不显示按键",
+	       "刚进游戏时 visible=true，电脑上会显得冗余")
+
 	touch.visible = true
 	touch.queue_redraw()
 	await process_frame
@@ -123,6 +126,35 @@ func _init() -> void:
 		await process_frame
 		_check(not Input.is_action_pressed("attack"),
 		       "6. 松开后 action 被释放", "attack 仍按住")
+
+	# ── 7/8. toggle 开关 + 关闭时必须释放按键 ──
+	# 场景：按住攻击键的同时把按键层关掉，若不释放 action，
+	# 角色会一直处于攻击状态（这是很隐蔽的卡手感 bug）
+	var atk2: Dictionary = {}
+	for b in buttons:
+		if b["id"] == "attack":
+			atk2 = b
+			break
+	var ev3 := InputEventScreenTouch.new()
+	ev3.index = 5
+	ev3.position = touch._button_center(atk2)
+	ev3.pressed = true
+	touch._input(ev3)
+	await process_frame
+	var held := Input.is_action_pressed("attack")
+
+	touch.toggle()          # 关闭
+	await process_frame
+	_check(not touch.visible, "7. toggle 能关闭按键层", "visible 仍为 true")
+	_check(not Input.is_action_pressed("attack"),
+	       "8. 关闭时释放了按住的 action",
+	       "按住状态下关闭，attack 仍为 pressed（会导致角色卡在攻击）")
+
+	touch.toggle()          # 再打开，验证可逆
+	await process_frame
+	_check(touch.visible, "9. toggle 能再次打开", "visible 仍为 false")
+	touch.visible = false
+	touch._release_all()
 
 	print("")
 	if _failures.is_empty():

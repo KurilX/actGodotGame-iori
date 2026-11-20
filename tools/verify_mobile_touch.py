@@ -32,7 +32,7 @@ BTN = {
 
 
 def main():
-    url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8765/"
+    url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8765/?touch=1"
     print(f"target = {url}")
 
     failures = []

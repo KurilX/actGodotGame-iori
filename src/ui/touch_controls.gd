@@ -1,16 +1,23 @@
 extends Control
-## 触屏虚拟按键：仅在触摸设备上显示
+## 触屏虚拟按键：**默认隐藏**，需要显式开启
 ##
-## 设计要点
-## ─────────
+## 为什么默认隐藏
+## ──────────────
+## 原来用 DisplayServer.is_touchscreen_available() 自动判断，但实测
+## **桌面浏览器里这个函数也会返回 true**（web 平台的触摸能力上报不可靠），
+## 结果电脑上一直显示一堆按键，看着很冗余。
+## 现在改为默认关闭，三种方式打开：
+##   1. URL 参数：?touch=1（网页版用这个，手机上可收藏带参数的链接）
+##   2. 命令行参数：--touch（本地调试）
+##   3. 运行时快捷键：F2 切换（任何平台都能现场开关）
+##
+## 其余设计要点
+## ──────────────
 ## 1. **不改 InputMap 语义**：虚拟按键直接 press/release 已有的 action，
 ##    所以 player.gd 的手感代码一行都不用改，桌面/手机跑同一套逻辑。
-## 2. **视口只有 480x270**，按钮必须够大才好点（拇指约需 40px 直径），
-##    同时半透明，避免挡住角色和敌人。
-## 3. **左摇杆区 + 右侧功能键**：左侧是方向（左右两个大按钮，不需要摇杆精度），
-##    右侧三键扇形排布（跳跃/攻击/闪避），攻击键最大且最好按。
-## 4. **多点触控**：必须支持同时按住「左」和「攻击」，所以每个按钮
-##    独立追踪 touch index，不能用单个 index。
+## 2. **视口只有 480x270**，按钮必须够大才好点，同时半透明不挡画面。
+## 3. **多点触控**：每个按钮独立追踪 touch index，否则「按住左移 + 点攻击」
+##    会有一方被吞。
 
 const ACTION_LEFT := "move_left"
 const ACTION_RIGHT := "move_right"
@@ -19,32 +26,80 @@ const ACTION_ATTACK := "attack"
 const ACTION_DASH := "dash"
 
 # 按钮视觉参数
-# 透明度压得比较低：按键是辅助层，不该盖住场景和敌人
 const BTN_ALPHA := 0.22
 const BTN_ALPHA_ACTIVE := 0.48
 const BTN_EDGE := Color(0.75, 0.91, 0.78, 0.42)
 const ICON_ALPHA := 0.72
 
-# 桌面调试时是否强制显示（--touch 命令行参数）
-var _force_show := false
+# 切换开关的快捷键
+const TOGGLE_KEY := KEY_F2
 
 var _buttons: Array[Dictionary] = []
 var _touch_map := {}          # touch_index -> button id
 
 
 func _ready() -> void:
-	# 判断是否为触摸设备；桌面默认隐藏
-	_force_show = "--touch" in OS.get_cmdline_user_args()
-	var is_touch := DisplayServer.is_touchscreen_available()
-	visible = is_touch or _force_show
-
 	# 铺满整个视口，保证在任意分辨率下坐标都对
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_build_buttons()
+
+	# 默认隐藏；只有显式开启才显示
+	visible = _want_visible()
 	if visible:
-		print("触屏按键已启用（touchscreen=%s, forced=%s）" % [is_touch, _force_show])
+		print("触屏按键已开启（%s）" % _why_visible())
+		queue_redraw()
+
+
+# ───────────────────── 显示开关 ─────────────────────
+
+func _want_visible() -> bool:
+	return _has_args_flag() or _has_url_flag()
+
+
+func _has_args_flag() -> bool:
+	return "--touch" in OS.get_cmdline_user_args()
+
+
+func _has_url_flag() -> bool:
+	# 网页版：从 URL 查询串里读 touch=1 / touch=true
+	if not OS.has_feature("web"):
+		return false
+	var q := str(JavaScriptBridge.eval(
+		"(function(){var m=location.search.match(/[?&]touch=([^&]*)/); return m?m[1]:'';})()",
+		true))
+	return q == "1" or q.to_lower() == "true" or q == "yes"
+
+
+func _why_visible() -> String:
+	if _has_args_flag():
+		return "命令行 --touch"
+	return "URL ?touch=1"
+
+
+func toggle() -> void:
+	visible = not visible
+	# 关闭时释放所有按住的 action，避免角色一直往一个方向跑
+	if not visible:
+		_release_all()
+	print("触屏按键：%s" % ("显示" if visible else "隐藏"))
+	queue_redraw()
+
+
+func _release_all() -> void:
+	for b in _buttons:
+		if b["pressed"]:
+			b["pressed"] = false
+			Input.action_release(b["action"])
+	_touch_map.clear()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == TOGGLE_KEY:
+			toggle()
+			get_viewport().set_input_as_handled()
 
 
 func _build_buttons() -> void:

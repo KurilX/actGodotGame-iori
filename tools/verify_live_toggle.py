@@ -14,6 +14,15 @@ DESKTOP = {
 
 BASE = "https://kurilx.github.io/actGodotGame-iori/"
 
+# 统计「按钮描边色」的像素数。
+#
+# 注意：这个判据随场景美术变化会失效。加入夜景后，月亮 #D8F0F8、
+# 苔藓/草丛的浅绿都落进了原来的阈值 (r>160,g>195,b>160)，默认隐藏状态下
+# 统计值从 78 涨到 1037，误判成"按键显示了"。
+#
+# 按钮描边的实际颜色是 Color(0.75,0.91,0.78, alpha) 叠加在深色背景上，
+# 展开后接近 (191,232,199)。收紧到这个窄区间，并要求 g-b 和 g-r 的差值
+# 都落在按钮色的特征范围内，避开月亮（偏蓝，b 高）和苔藓（b 低但饱和高）。
 JS_COUNT = """() => {
     const s = document.getElementById('canvas');
     const W = s.width, H = s.height;
@@ -27,7 +36,10 @@ JS_COUNT = """() => {
         for (let x = 0; x < W; x += 2) {
             const i = (y * W + x) * 4;
             const r = d[i], gg = d[i+1], bb = d[i+2];
-            if (r > 160 && gg > 195 && bb > 160 && gg > r) b++;
+            // 按钮描边（低透明度叠深底）：r 145~205, g 175~235, b 150~215
+            // 月亮 b 更高（>230），苔藓 b 更低（<140），都能排除
+            if (r > 145 && r < 205 && gg > 175 && gg < 235 &&
+                bb > 150 && bb < 218 && gg > r && gg > bb) b++;
         }
     }
     return b;

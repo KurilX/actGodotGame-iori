@@ -162,9 +162,13 @@ func _spawn_player() -> void:
 	slash.set_script(slash_script)
 	slash.name = "SlashLayer"
 	add_child(slash)
+	# 重攻击用不同的贴图前缀（heavy）和更慢的帧速（更"重"的观感）
 	player.slash_requested.connect(
-		func(origin, _d0, _d1, _r, _c, _th, _dur, facing):
-			slash.spawn(origin, player.get_combo_index(), facing))
+		func(origin, _d0, _d1, _r, _c, _th, dur, facing, heavy: bool):
+			if heavy:
+				slash.spawn(origin, player.get_heavy_index(), facing, "heavy", 0.075)
+			else:
+				slash.spawn(origin, player.get_combo_index(), facing))
 
 	# 训练木桩：放在出生点右侧，验证攻击连段
 	_spawn_dummy(Vector2(320, 480))

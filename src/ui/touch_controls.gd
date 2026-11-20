@@ -24,6 +24,7 @@ const ACTION_RIGHT := "move_right"
 const ACTION_JUMP := "jump"
 const ACTION_ATTACK := "attack"
 const ACTION_DASH := "dash"
+const ACTION_HEAVY := "heavy"
 
 # 按钮视觉参数
 const BTN_ALPHA := 0.22
@@ -113,11 +114,12 @@ func _build_buttons() -> void:
 	# 若三键排成一条斜线，jump 与 attack 的中心距只有 48px，
 	# 而命中半径之和要 88px，必然重叠（第一版就是这么翻车的）。
 	# 三角排布把三组间距都拉到 75px 以上，同时保证不越界。
-	_add("left", ACTION_LEFT, Vector2(0.0875, 0.8000), 25.0)
-	_add("right", ACTION_RIGHT, Vector2(0.2333, 0.8000), 25.0)
-	_add("dash", ACTION_DASH, Vector2(0.7333, 0.5481), 23.0)
-	_add("jump", ACTION_JUMP, Vector2(0.8292, 0.7630), 25.0)
-	_add("attack", ACTION_ATTACK, Vector2(0.9375, 0.6222), 25.0)
+	_add("left", ACTION_LEFT, Vector2(0.0833, 0.8000), 24.0)
+	_add("right", ACTION_RIGHT, Vector2(0.2208, 0.8000), 24.0)
+	_add("dash", ACTION_DASH, Vector2(0.6958, 0.5556), 21.0)
+	_add("jump", ACTION_JUMP, Vector2(0.7792, 0.7704), 22.0)
+	_add("attack", ACTION_ATTACK, Vector2(0.8917, 0.7704), 22.0)
+	_add("heavy", ACTION_HEAVY, Vector2(0.8958, 0.5259), 24.0)
 
 
 func _add(id: String, action: String, anchor: Vector2, radius: float) -> void:
@@ -259,6 +261,16 @@ func _draw() -> void:
 					var yy := r * (-0.15 + 0.3 * i)
 					draw_line(c + Vector2(-r * 0.4, yy), c + Vector2(r * 0.4, yy),
 							  icon_col, 2.0 * scale_k)
+			"heavy":
+				# 重击：加粗的双斜线 + 下方一道冲击横线，与轻攻击区分
+				var s3 := r * 0.52
+				draw_line(c + Vector2(-s3, s3), c + Vector2(s3, -s3),
+						  icon_col, 3.5 * scale_k)
+				draw_line(c + Vector2(-s3 * 0.8, s3 * 0.5),
+						  c + Vector2(s3 * 0.5, -s3 * 0.8),
+						  icon_col.lerp(Color.WHITE, 0.3), 1.6 * scale_k)
+				draw_line(c + Vector2(-s3 * 0.6, s3 * 1.15),
+						  c + Vector2(s3 * 0.6, s3 * 1.15), icon_col, 2.0 * scale_k)
 
 
 func _draw_arrow(c: Vector2, r: float, dir: float, col: Color, k: float) -> void:

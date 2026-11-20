@@ -17,7 +17,10 @@ func _init() -> void:
 		{"name": "atk2", "prefix": "ori_atk2", "count": 6, "loop": false, "fps": 0.0},
 		{"name": "atk3", "prefix": "ori_atk3", "count": 6, "loop": false, "fps": 0.0},
 		{"name": "atk4", "prefix": "ori_atk4", "count": 6, "loop": false, "fps": 0.0},
-		{"name": "dash", "prefix": "ori_dash", "count": 3, "loop": false, "fps": 0.0},
+{"name": "dash", "prefix": "ori_dash", "count": 3, "loop": false, "fps": 0.0},
+		{"name": "heavy1", "prefix": "ori_heavy1", "count": 8, "loop": false, "fps": 0.0},
+		{"name": "heavy2", "prefix": "ori_heavy2", "count": 8, "loop": false, "fps": 0.0},
+		{"name": "heavy3", "prefix": "ori_heavy3", "count": 8, "loop": false, "fps": 0.0},
 	]
 
 	# 收集所有帧，生成 ext_resource 与 SpriteFrames

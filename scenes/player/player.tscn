@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3 uid="uid://bqorip1ayer00"]
+[gd_scene load_steps=71 format=3 uid="uid://bqorip1ayer00"]
 
 [ext_resource type="Script" path="res://src/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://src/player/shadow.gd" id="17_shadow"]
@@ -45,6 +45,30 @@
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_0.png" id="t41"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_1.png" id="t42"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_dash_2.png" id="t43"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_0.png" id="t44"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_1.png" id="t45"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_2.png" id="t46"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_3.png" id="t47"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_4.png" id="t48"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_5.png" id="t49"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_6.png" id="t50"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy1_7.png" id="t51"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_0.png" id="t52"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_1.png" id="t53"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_2.png" id="t54"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_3.png" id="t55"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_4.png" id="t56"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_5.png" id="t57"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_6.png" id="t58"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy2_7.png" id="t59"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_0.png" id="t60"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_1.png" id="t61"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_2.png" id="t62"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_3.png" id="t63"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_4.png" id="t64"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_5.png" id="t65"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_6.png" id="t66"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_7.png" id="t67"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(24, 40)
@@ -224,6 +248,93 @@ animations = [
 }],
 "loop": false,
 "name": &"dash",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("t44")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t45")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t46")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t47")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t48")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t49")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t50")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t51")
+}],
+"loop": false,
+"name": &"heavy1",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("t52")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t53")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t54")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t55")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t56")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t57")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t58")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t59")
+}],
+"loop": false,
+"name": &"heavy2",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("t60")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t61")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t62")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t63")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t64")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t65")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t66")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t67")
+}],
+"loop": false,
+"name": &"heavy3",
 "speed": 1.0
 }
 ]

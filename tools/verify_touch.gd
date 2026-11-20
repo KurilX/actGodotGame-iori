@@ -52,7 +52,7 @@ func _init() -> void:
 
 	# 检查按钮数量与位置
 	var buttons: Array = touch._buttons
-	_check(buttons.size() == 5, "1. 构造了 5 个按钮",
+	_check(buttons.size() == 6, "1. 构造了 6 个按钮（含重击）",
 	       "实际 %d 个" % buttons.size())
 
 	# 逐个验证命中测试：按钮中心必须能命中自己

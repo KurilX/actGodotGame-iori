@@ -44,6 +44,32 @@ const COMBO_MAX := 4
 const COMBO_INPUT_WINDOW := 0.55   # 上一段结束后多久内按攻击仍接下一段
 const COMBO_CANCEL_AFTER := 0.55   # 一段进度过这个比例后允许取消进下一段
 
+# ── 重攻击三连（v0.6） ──
+# 与轻攻击的区别（这是设计上的三条硬线，不只是数值放大）：
+#   1. **时间更长**：每段 0.55~0.85s（轻攻击 0.22~0.36s），有明确的蓄力前摇
+#   2. **幅度更大**：前冲距离翻倍以上，判定框更大，第2段还能打到上方
+#   3. **反馈更重**：顿帧更久、震屏更狠，命中时停顿感明显
+#
+# 连段规则也与轻攻击不同：重攻击几乎不能取消（HEAVY_CANCEL_AFTER = 0.92），
+# 必须等这一段走完，否则「重」就没有代价。
+const HEAVY_COMBO := [
+	# 第1段：蓄力横扫 —— 前摇长，横向大范围
+	{"dur": 0.55, "hit_on": 0.20, "hit_off": 0.34, "dmg": 5, "lunge": 22.0,
+	 "box": Vector4(34, 30, 20, -26), "hitstop": 0.08, "shake": 2.5},
+	# 第2段：上挑重斩 —— 打高，判定框向右上延伸
+	{"dur": 0.62, "hit_on": 0.22, "hit_off": 0.38, "dmg": 7, "lunge": 14.0,
+	 "box": Vector4(30, 42, 18, -34), "hitstop": 0.09, "shake": 3.0},
+	# 第3段：泰山压顶 —— 跃起下砸，最大伤害与最强反馈
+	{"dur": 0.85, "hit_on": 0.34, "hit_off": 0.52, "dmg": 12, "lunge": 30.0,
+	 "box": Vector4(40, 36, 22, -22), "hitstop": 0.14, "shake": 5.0},
+]
+const HEAVY_MAX := 3
+const HEAVY_INPUT_WINDOW := 0.35   # 比轻攻击更短：重攻击接段要更精确
+const HEAVY_CANCEL_AFTER := 0.92   # 几乎不能取消，必须打完
+
+# 顿帧（hitstop）：命中瞬间把时间流速压到很低，制造打击感
+const HITSTOP_SCALE := 0.05
+
 # ── 闪避（v0.5） ──
 const DASH_SPEED := 300.0
 const DASH_DURATION := 0.20
@@ -74,13 +100,24 @@ var _hurt_timer := 0.0
 var _invuln := 0.0
 var _hearts := MAX_HEARTS
 
-# 连段状态
+# 连段状态（轻攻击）
 var _combo_index := 0             # 当前段（0..3）
 var _combo_timer := 0.0           # 当前段已进行时间
 var _combo_idle := 0.0            # 距离上一段结束的时间（用于接段窗口）
 var _combo_buffer := false        # 是否缓存了攻击输入
 var _hit_this_swing := false      # 本次挥击是否已命中（避免一次判多下）
 var _hit_targets: Array = []      # 本次挥击已命中的目标
+
+# 连段状态（重攻击）—— 与轻攻击完全独立的一套游标，
+# 这样轻重之间可以互不干扰地各自推进（但同一时间只能处于一种攻击中）
+var _heavy_index := 0
+var _heavy_timer := 0.0
+var _heavy_idle := 0.0
+var _heavy_buffer := false
+var is_heavy_attack := false      # 当前 ATTACK 状态属于重攻击
+
+# 顿帧：>0 时把时间流速压到 HITSTOP_SCALE，制造命中停顿
+var _hitstop := 0.0
 
 # 闪避状态
 var _dash_timer := 0.0
@@ -93,7 +130,11 @@ signal hit_landed(target: Node, damage: int)
 # 刀光请求：由世界层 SlashLayer 接收并绘制，player 自己不画特效
 signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 					   radius: float, color: Color, thick: float,
-					   duration: float, facing: int)
+					   duration: float, facing: int, heavy: bool)
+# 震屏请求：重攻击命中时相机抖动
+signal shake_requested(amount: float, duration: float)
+# 顿帧请求：把全局时间流速压低一小段
+signal hitstop_requested(duration: float)
 
 @onready var _visual: Node2D = $Visual
 @onready var _anim: AnimatedSprite2D = $Visual/AnimatedSprite2D
@@ -161,11 +202,15 @@ func _physics_process(delta: float) -> void:
 # ────────────────────────────── 输入 ──────────────────────────────
 
 func _handle_input(_delta: float) -> void:
-	# 攻击输入：**按住也算**，不要求每一下都重新点。
+	# 轻攻击输入：**按住也算**，不要求每一下都重新点。
 	# 动作游戏的通行手感是按住攻击键持续连打；只认 just_pressed 会导致
 	# 玩家必须疯狂点击才能接上连段，手感非常糟。
 	if Input.is_action_pressed("attack"):
 		_combo_buffer = true
+
+	# 重攻击：同样支持按住连打，但用独立缓冲，不与轻攻击互相消耗
+	if Input.is_action_pressed("heavy"):
+		_heavy_buffer = true
 
 	# 闪避优先于一切（除了受击/死亡）
 	if Input.is_action_just_pressed("dash") and _dash_cd <= 0.0:
@@ -220,17 +265,33 @@ func _apply_gravity(delta: float) -> void:
 		_coyote = COYOTE_TIME
 
 
-# ────────────────────────── 轻攻击四连连段树 ──────────────────────────
+# ────────────────────── 攻击连段（轻攻击 + 重攻击） ──────────────────────
+
+func _current_seg() -> Dictionary:
+	"""取当前段的参数表，轻/重共用同一套推进逻辑。"""
+	return HEAVY_COMBO[_heavy_index] if is_heavy_attack else COMBO[_combo_index]
+
+
+func _set_attack_timer(t: float) -> void:
+	if is_heavy_attack:
+		_heavy_timer = t
+	else:
+		_combo_timer = t
+
+
+func _get_attack_timer() -> float:
+	return _heavy_timer if is_heavy_attack else _combo_timer
+
 
 func _update_attack(delta: float) -> void:
-	var seg: Dictionary = COMBO[_combo_index]
-	_combo_timer += delta
+	var seg: Dictionary = _current_seg()
+	_set_attack_timer(_get_attack_timer() + delta)
 
 	# 攻击期间保留惯性，逐渐减速
 	velocity.x = move_toward(velocity.x, 0.0, DECEL_AIR * delta)
 
 	# 判定框开关：只在 hit_on..hit_off 区间开启
-	var t := _combo_timer
+	var t := _get_attack_timer()
 	var should_hit: bool = t >= float(seg["hit_on"]) and t <= float(seg["hit_off"])
 	if should_hit != _hitbox.active:
 		_hitbox.set_active(should_hit)
@@ -238,24 +299,39 @@ func _update_attack(delta: float) -> void:
 	# 段内结束
 	if t >= float(seg["dur"]):
 		_hitbox.set_active(false)
-		_combo_idle = 0.0
-		_combo_timer = 0.0
+		_set_attack_timer(0.0)
 		_hit_this_swing = false
 		_hit_targets.clear()
 		state = State.IDLE
-		# 段刚结束时若已缓存输入，立即接下一段
-		_try_next_combo()
+		if is_heavy_attack:
+			_heavy_idle = 0.0
+			is_heavy_attack = false
+			_try_next_heavy()
+		else:
+			_combo_idle = 0.0
+			_try_next_combo()
 		return
 
-	# 取消窗口：一段过半后按攻击可提前接下一段
 	var progress: float = t / float(seg["dur"])
-	if _combo_buffer and progress >= COMBO_CANCEL_AFTER and _combo_index < COMBO_MAX - 1:
+
+	# 取消窗口：轻攻击过半可取消；重攻击几乎不能（HEAVY_CANCEL_AFTER=0.92）
+	var cancel_after := HEAVY_CANCEL_AFTER if is_heavy_attack else COMBO_CANCEL_AFTER
+	var buf := _heavy_buffer if is_heavy_attack else _combo_buffer
+	var max_n := HEAVY_MAX if is_heavy_attack else COMBO_MAX
+	var idx := _heavy_index if is_heavy_attack else _combo_index
+
+	if buf and progress >= cancel_after and idx < max_n - 1:
 		_hitbox.set_active(false)
-		_combo_index += 1
-		_combo_timer = 0.0
+		if is_heavy_attack:
+			_heavy_index += 1
+			_heavy_timer = 0.0
+			_heavy_buffer = false
+		else:
+			_combo_index += 1
+			_combo_timer = 0.0
+			_combo_buffer = false
 		_hit_this_swing = false
 		_hit_targets.clear()
-		_combo_buffer = false
 		_begin_swing()
 		return
 
@@ -263,7 +339,7 @@ func _update_attack(delta: float) -> void:
 
 
 func _try_next_combo() -> bool:
-	"""一段结束后尝试接下一段。
+	"""轻攻击一段结束后尝试接下一段。
 
 	第 4 段打完后**循环回第 1 段**，这样按住攻击键可以无限连打，
 	而不是打完四段就停手等玩家重新按键（那是很差的连续攻击手感）。
@@ -271,20 +347,43 @@ func _try_next_combo() -> bool:
 	if not _combo_buffer:
 		return false
 	if _combo_index >= COMBO_MAX - 1:
-		# 四段打完，回到第一段接着打
 		_combo_index = 0
 	else:
 		_combo_index += 1
 	_combo_buffer = false
+	is_heavy_attack = false
+	_begin_swing()
+	return true
+
+
+func _try_next_heavy() -> bool:
+	"""重攻击一段结束后尝试接下一段。
+
+	与轻攻击的差别：**第 3 段打完不回第 1 段**，而是收招结束。
+	重攻击是「一套打完」的爆发，循环回去会变成无脑连按，
+	失去「重」的分量感。
+	"""
+	if not _heavy_buffer:
+		return false
+	if _heavy_index >= HEAVY_MAX - 1:
+		# 三段打完就收手，需要重新按键才起新的一套
+		_heavy_buffer = false
+		_heavy_index = 0
+		_heavy_idle = 999.0
+		return false
+	_heavy_index += 1
+	_heavy_buffer = false
+	is_heavy_attack = true
 	_begin_swing()
 	return true
 
 
 func _begin_swing() -> void:
-	var seg: Dictionary = COMBO[_combo_index]
+	var seg: Dictionary = _current_seg()
 	state = State.ATTACK
-	_combo_timer = 0.0
+	_set_attack_timer(0.0)
 	_combo_idle = 0.0
+	_heavy_idle = 0.0
 	_hit_this_swing = false
 	_hit_targets.clear()
 	_hitbox.damage = int(seg["dmg"])
@@ -292,24 +391,57 @@ func _begin_swing() -> void:
 	var box: Vector4 = seg["box"]
 	_hitbox.set_reach(box.x, box.y, box.z * facing, box.w)
 
-	# 前冲
-	velocity.x = facing * float(seg["lunge"]) * 6.0
+	# 前冲。重攻击冲得更远，但重攻击的 lunge 值本身已经更大，
+	# 这里用不同的系数保持手感区分：
+	#   轻攻击 ×6（起步快、位移短）
+	#   重攻击 ×4（起步稍慢、但基数大，整体位移更远）
+	var mul := 4.0 if is_heavy_attack else 6.0
+	velocity.x = facing * float(seg["lunge"]) * mul
+
 	_play_attack_anim()
 	_fire_slash_fx()
+
+
+# 重攻击三连的刀光参数：(起始角, 终止角, 半径, 粗细)
+# 比轻攻击明显更"重"：半径更大（覆盖更广）、更粗、颜色更暖
+const HEAVY_SLASH_FX := [
+	Vector4(-70, 75, 32, 5.0),      # 第1段 蓄力横扫：大横弧
+	Vector4(85, -105, 30, 5.5),     # 第2段 上挑重斩：从下扫到头顶
+	Vector4(-115, 100, 36, 7.0),    # 第3段 泰山压顶：最大竖弧
+]
 
 
 func _fire_slash_fx() -> void:
 	# 刀光由世界层的 SlashLayer 绘制（见 src/world/slash_sprite.gd）。
 	# 不画进角色帧、也不做 Player 子节点：前者会覆盖角色像素，
 	# 后者受 flip_h 和父变换影响，位置会错乱。
-	var fx: Vector4 = SLASH_FX[_combo_index]
-	var color := Color("#B9F2FF")
-	if _combo_index == COMBO_MAX - 1:
-		color = Color("#FF7A9C")
+	var fx: Vector4
+	var color: Color
+	var duration: float
+
+	if is_heavy_attack:
+		fx = HEAVY_SLASH_FX[_heavy_index]
+		# 重攻击用更暖的橙金色，第3段用高饱和红强调终结感
+		color = Color("#FFB04A") if _heavy_index < HEAVY_MAX - 1 else Color("#FF5A6E")
+		duration = 0.30          # 比轻攻击（0.16）挂得更久，视觉更有分量
+	else:
+		fx = SLASH_FX[_combo_index]
+		color = Color("#B9F2FF")
+		if _combo_index == COMBO_MAX - 1:
+			color = Color("#FF7A9C")
+		duration = 0.16
+
 	# 弧心：角色身前、躯干中部高度。
-	# v3 角色仍 48px 高（脚在原点），躯干中心约在 y=-22，略偏前 x=4。
 	var origin := global_position + Vector2(4.0 * facing, -22.0)
-	slash_requested.emit(origin, fx.x, fx.y, fx.z, color, fx.w, 0.16, facing)
+	slash_requested.emit(origin, fx.x, fx.y, fx.z, color, fx.w, duration, facing, is_heavy_attack)
+
+	# 重攻击额外叠一层「残影」：同一道弧、更大的半径、更低的透明度，
+	# 在视觉上做出双层刀光，比单纯加粗更有层次。
+	if is_heavy_attack:
+		var ghost_origin := origin + Vector2(-6.0 * facing, -2.0)
+		slash_requested.emit(ghost_origin, fx.x * 0.85, fx.y * 0.85,
+							 fx.z * 1.22, Color(color.r, color.g, color.b, 0.45),
+							 fx.w * 0.7, duration * 1.35, facing, true)
 
 
 func start_attack() -> void:
@@ -339,6 +471,36 @@ func get_combo_index() -> int:
 	return _combo_index
 
 
+func get_heavy_index() -> int:
+	return _heavy_index
+
+
+func start_heavy_attack() -> void:
+	"""供外部/测试调用：发起重攻击。
+
+	连段规则与轻攻击一致（窗口内可接段），但第 3 段打完不回第 1 段。
+	"""
+	if state == State.ATTACK or state == State.DASH:
+		return
+	if state == State.HURT or state == State.DEAD:
+		return
+
+	var can_chain: bool = _heavy_idle <= HEAVY_INPUT_WINDOW \
+		and _heavy_index < HEAVY_MAX - 1 \
+		and _heavy_idle < 900.0
+
+	if can_chain:
+		_heavy_index += 1
+	else:
+		_heavy_index = 0
+	is_heavy_attack = true
+	_begin_swing()
+
+
+func is_heavy() -> bool:
+	return state == State.ATTACK and is_heavy_attack
+
+
 func is_attacking() -> bool:
 	return state == State.ATTACK
 
@@ -360,9 +522,31 @@ func _on_hit_landed(target: Node, damage: int, _from_x: float) -> void:
 
 
 func _emit_hit_feedback() -> void:
-	# 顿帧 + 震屏的挂点。真正实现放在 main 里，通过信号驱动，
-	# 这样 player 不需要知道相机和全局时间。
-	pass
+	"""命中反馈：顿帧 + 震屏。
+
+	轻攻击给短顿帧、轻震屏；重攻击用段参数里配的 hitstop/shake，
+	数值明显更大 —— 这是「重」最重要的手感来源，比伤害数字有用得多。
+	"""
+	if is_heavy_attack:
+		var seg: Dictionary = HEAVY_COMBO[_heavy_index]
+		var stop: float = float(seg.get("hitstop", 0.08))
+		var shake: float = float(seg.get("shake", 2.5))
+		_hitstop = maxf(_hitstop, stop)
+		hitstop_requested.emit(stop)
+		shake_requested.emit(shake, 0.18)
+	else:
+		# 轻攻击：极短的顿帧，只够"顿一下"
+		_hitstop = maxf(_hitstop, 0.04)
+		hitstop_requested.emit(0.04)
+		shake_requested.emit(1.2, 0.10)
+
+
+func get_hitstop() -> float:
+	return _hitstop
+
+
+func _tick_hitstop(delta: float) -> void:
+	_hitstop = maxf(_hitstop - delta, 0.0)
 
 
 # ────────────────────────────── 闪避 ──────────────────────────────
@@ -427,6 +611,9 @@ func _tick_timers(delta: float) -> void:
 	_dash_invuln = maxf(_dash_invuln - delta, 0.0)
 	if state != State.ATTACK:
 		_combo_idle += delta
+		_heavy_idle += delta
+	# 顿帧倒计时（无论什么状态都要推进，否则会卡住）
+	_tick_hitstop(delta)
 	if _land_timer > 0.0:
 		_land_timer -= delta
 	if _hurt_timer > 0.0:
@@ -443,7 +630,14 @@ func _update_state() -> void:
 			or state == State.DASH:
 		return
 
-	# 非攻击状态时，缓存的攻击输入在这里消费
+	# 非攻击状态时，缓存的攻击输入在这里消费。
+	# **重攻击优先**：玩家同时按住轻重时，「更重的那一下」是更明确的意图，
+	# 而且重攻击打不出来会让玩家觉得按键没响应。
+	if _heavy_buffer:
+		_heavy_buffer = false
+		start_heavy_attack()
+		return
+
 	if _combo_buffer:
 		_combo_buffer = false
 		start_attack()
@@ -481,7 +675,11 @@ func _sync_animation() -> void:
 
 
 func _play_attack_anim() -> void:
-	var anim_name: String = "atk%d" % (_combo_index + 1)
+	var anim_name: String
+	if is_heavy_attack:
+		anim_name = "heavy%d" % (_heavy_index + 1)
+	else:
+		anim_name = "atk%d" % (_combo_index + 1)
 	_current_anim = anim_name
 	if _anim.sprite_frames.has_animation(anim_name):
 		_anim.play(anim_name)
@@ -490,8 +688,10 @@ func _play_attack_anim() -> void:
 
 
 func _animate_attack(progress: float) -> void:
-	# 攻击动画 6 帧（v3 从 4 帧扩到 6 帧）：
-	# 0 蓄势 / 1 起手 / 2 加速 / 3 命中 / 4 收势 / 5 回位
+	if is_heavy_attack:
+		_animate_heavy(progress)
+		return
+	# 轻攻击 6 帧：0 蓄势 / 1 起手 / 2 加速 / 3 命中 / 4 收势 / 5 回位
 	# 命中帧（3）要落在 COMBO 的 hit_on..hit_off 窗口内，
 	# 否则会出现「动画已经打完了判定才开」的错位感。
 	var f := 0
@@ -504,6 +704,32 @@ func _animate_attack(progress: float) -> void:
 	elif progress >= 0.26:
 		f = 2
 	elif progress >= 0.12:
+		f = 1
+	_anim.pause()
+	_anim.frame = f
+
+
+func _animate_heavy(progress: float) -> void:
+	"""重攻击 8 帧：0 起势 / 1-2 长蓄力 / 3 加速 / 4 命中 / 5 余震 / 6 收势 / 7 回位。
+
+	与轻攻击相比，蓄力占的比例明显更大（0~0.40 都还在准备），
+	这是「重」的时间感来源；命中帧落在 hit_on（0.20~0.34）之后，
+	保证「看到蓄力 → 打出去」的因果清晰。
+	"""
+	var f := 0
+	if progress >= 0.90:
+		f = 7
+	elif progress >= 0.78:
+		f = 6
+	elif progress >= 0.62:
+		f = 5
+	elif progress >= 0.40:
+		f = 4
+	elif progress >= 0.28:
+		f = 3
+	elif progress >= 0.18:
+		f = 2
+	elif progress >= 0.08:
 		f = 1
 	_anim.pause()
 	_anim.frame = f

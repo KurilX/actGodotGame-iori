@@ -27,18 +27,28 @@ SIZE = 64
 CX, CY = 32.0, 26.0
 
 # 色板（与 art/palette.gpl 一致）
-ARC_LIGHT = (0xB9, 0xF2, 0xFF)   # 丝线光
-ARC_HOT = (0xFF, 0x7A, 0x9C)     # 危险/弹幕
+ARC_LIGHT = (0xB9, 0xF2, 0xFF)   # 丝线光（轻攻击）
+ARC_HOT = (0xFF, 0x7A, 0x9C)     # 危险/弹幕（轻攻击终结段）
+ARC_HEAVY = (0xFF, 0xB0, 0x4A)   # 重攻击：暖橙金
+ARC_METEOR = (0xFF, 0x5A, 0x6E)  # 重攻击终结段：高饱和红
 ARC_CORE = (0xFF, 0xFF, 0xFF)    # 内芯高光
 
 # 每段：(半径, 起始角, 终止角, 粗细, 颜色)
 # 角度基准 0°=正右，-90°=正上，90°=正下（y 向下）
 # 与 player.gd 的 SLASH_FX 保持一致，四段轨迹各不相同：
+# 轻攻击四连（现有）
 SEGMENTS = [
     (20.0, 80.0, -100.0, 2.6, ARC_LIGHT),    # 第1段 上挑（竖直上撩）
     (22.0, -30.0, 35.0, 2.8, ARC_LIGHT),    # 第2段 横斩（窄而平）
     (24.0, -6.0, 6.0, 3.0, ARC_LIGHT),      # 第3段 突刺（近直线）
     (26.0, -95.0, 100.0, 3.6, ARC_HOT),    # 第4段 跳劈（头顶→身前下方）
+]
+
+# 重攻击三连（v0.6）：半径更大、更粗，视觉上明显"重"一档
+HEAVY_SEGMENTS = [
+    (32.0, -70.0, 75.0, 5.0, ARC_HEAVY),     # 重1 蓄力横扫
+    (30.0, 85.0, -105.0, 5.5, ARC_HEAVY),    # 重2 上挑重斩
+    (36.0, -115.0, 100.0, 7.0, ARC_METEOR),  # 重3 泰山压顶
 ]
 
 # 每段的 3 帧：(扫过的角度比例上限, 整体亮度)
@@ -117,7 +127,17 @@ def main():
             path = os.path.join(OUT, f"seg{si}_{fi}.png")
             img.save(path)
             total += 1
-        print(f"第 {si} 段: 3 帧 (r={radius}, {a0}°→{a1}°)")
+        print(f"轻攻击第 {si} 段: 3 帧 (r={radius}, {a0}度→{a1}度)")
+
+    # 重攻击三连：文件名 heavy{n}_{fi}.png
+    for si, (radius, a0, a1, thick, color) in enumerate(HEAVY_SEGMENTS, start=1):
+        for fi, (cover, bright) in enumerate(FRAMES):
+            img = draw_slash(radius, a0, a1, thick, color, cover, bright)
+            path = os.path.join(OUT, f"heavy{si}_{fi}.png")
+            img.save(path)
+            total += 1
+        print(f"重攻击第 {si} 段: 3 帧 (r={radius}, {a0}度→{a1}度, 粗 {thick})")
+
     print(f"共 {total} 张刀光贴图 -> art/fx/slash/")
 
 

@@ -35,6 +35,10 @@ SPECS = {
     "ori_atk4": (6, False, 0.0),
     # 闪避：3 帧
     "ori_dash": (3, False, 0.0),
+    # 重攻击三连：各 8 帧（比轻攻击多 2 帧，蓄力更长）
+    "ori_heavy1": (8, False, 0.0),
+    "ori_heavy2": (8, False, 0.0),
+    "ori_heavy3": (8, False, 0.0),
 }
 
 

@@ -370,6 +370,115 @@ def _jump_slash(p):
 
 # ─────────────────────────── 输出 ───────────────────────────
 
+# ─────────────── 重攻击三连（各 8 帧，幅度明显更大） ───────────────
+
+def make_heavy(p, idx):
+    fns = [_heavy_sweep, _heavy_uppercut, _heavy_meteor]
+    return fns[idx](p)
+
+
+def _heavy_sweep(p):
+    """重1 蓄力横扫：扭身蓄力 → 大跨步横扫。
+
+    与轻2「横斩」的区别：
+      - 蓄力更长（前 3 帧都在扭身），身体后仰更多（lean 到 -10）
+      - 跨步幅度翻倍（腿 ±9，已接近限位 6 的边界，用 6 保守处理）
+      - 剑扫过 200° 以上，从身后扫到身前
+    8 帧：扭身 → 蓄力 → 沉腰 → 起扫 → 命中 → 惯性 → 收势 → 回位
+    """
+    specs = [
+        dict(body_dy=1, lean=-7, foot_l_dx=-6, foot_r_dx=5,
+             hand=(-12, -20), sword_angle=-80),
+        dict(body_dy=2, lean=-10, foot_l_dx=-6, foot_r_dx=5,
+             hand=(-14, -22), sword_angle=-100),
+        dict(body_dy=3, lean=-9, foot_l_dx=-6, foot_r_dx=6,
+             hand=(-13, -21), sword_angle=-110),
+        dict(body_dy=1, lean=-4, foot_l_dx=-6, foot_r_dx=6,
+             hand=(-6, -20), sword_angle=-40),
+        # 命中：大跨步 + 身体前压到最大
+        dict(body_dy=0, lean=6, foot_l_dx=-6, foot_r_dx=6,
+             hand=(14, -20), sword_angle=25),
+        dict(body_dy=0, lean=7, foot_l_dx=-6, foot_r_dx=6,
+             hand=(16, -19), sword_angle=45),
+        dict(body_dy=1, lean=4, foot_l_dx=-5, foot_r_dx=5,
+             hand=(11, -18), sword_angle=75),
+        dict(body_dy=1, lean=0, foot_l_dx=-4, foot_r_dx=4,
+             hand=(5, -16), sword_angle=95),
+    ]
+    return [compose(Porter(**p), **s) for s in specs]
+
+
+def _heavy_uppercut(p):
+    """重2 上挑重斩：深蹲 → 全身上撩，把剑从脚边撩到头顶之上。
+
+    与轻1「上挑」的区别：
+      - 蹲得更深（body_dy 到 5）
+      - 撩得更高（剑角到 -125，握把抬到头顶之上）
+      - 身体后仰幅度更大（lean 到 6）
+    8 帧：起势 → 深蹲 → 蓄力 → 起撩 → 升至半空 → 命中(最高) → 落势 → 回位
+    """
+    specs = [
+        dict(body_dy=2, lean=-3, foot_l_dx=-5, foot_r_dx=5,
+             hand=(4, -12), sword_angle=115),
+        dict(body_dy=5, lean=-5, foot_l_dx=-6, foot_r_dx=5,
+             hand=(3, -9), sword_angle=130),
+        dict(body_dy=5, lean=-6, foot_l_dx=-6, foot_r_dx=5,
+             hand=(2, -8), sword_angle=140),
+        dict(body_dy=2, lean=-2, foot_l_dx=-5, foot_r_dx=5,
+             hand=(7, -14), sword_angle=95),
+        dict(body_dy=-2, lean=2, foot_l_dx=-4, foot_r_dx=6,
+             hand=(9, -24), sword_angle=20),
+        # 命中：剑举到最高，身体后仰
+        dict(body_dy=-5, lean=6, foot_l_dx=-3, foot_r_dx=6,
+             hand=(7, -32), sword_angle=-125),
+        dict(body_dy=-3, lean=4, foot_l_dx=-4, foot_r_dx=5,
+             hand=(6, -28), sword_angle=-95),
+        dict(body_dy=1, lean=0, foot_l_dx=-5, foot_r_dx=5,
+             hand=(4, -16), sword_angle=95),
+    ]
+    return [compose(Porter(**p), **s) for s in specs]
+
+
+def _heavy_meteor(p):
+    """重3 泰山压顶：跃到最高 → 举剑 → 砸落。
+
+    这是三段里最重的一击，动画上做了三件事：
+      - 跃得很高（body_dy 到 -14，比轻攻击的跳劈 -10 更高）
+      - 空中停留更久（连续 2 帧在最高点）
+      - 落地压得极低（body_dy 到 7），形成强烈的高低对比
+    8 帧：起势 → 起跳 → 升至顶点 → 顶点举剑 → 下落 → 砸中 → 余震 → 回位
+    """
+    specs = [
+        dict(body_dy=3, lean=-3, foot_l_dx=-6, foot_r_dx=6,
+             hand=(4, -12), sword_angle=115),
+        # 起跳
+        dict(body_dy=-8, lean=2, foot_l=(0, -6), foot_r=(0, -6),
+             foot_l_dx=-3, foot_r_dx=3,
+             hand=(6, -24), sword_angle=-20),
+        # 顶点：收腿到最紧
+        dict(body_dy=-14, lean=-1, foot_l=(0, -9), foot_r=(0, -9),
+             foot_l_dx=-1, foot_r_dx=1,
+             hand=(4, -32), sword_angle=-70),
+        # 顶点举剑：剑尖竖直朝上
+        dict(body_dy=-13, lean=-2, foot_l=(0, -8), foot_r=(0, -8),
+             foot_l_dx=-1, foot_r_dx=1,
+             hand=(3, -36), sword_angle=-100),
+        # 下落
+        dict(body_dy=-4, lean=3, foot_l=(0, -3), foot_r=(0, -3),
+             foot_l_dx=-3, foot_r_dx=3,
+             hand=(10, -22), sword_angle=30),
+        # 砸中：剑竖直朝下砸到地面，身体压到最低
+        dict(body_dy=7, lean=5, foot_l_dx=-6, foot_r_dx=6,
+             hand=(14, -10), sword_angle=95),
+        # 余震：压得更低一点
+        dict(body_dy=8, lean=4, foot_l_dx=-6, foot_r_dx=6,
+             hand=(12, -8), sword_angle=105),
+        dict(body_dy=2, lean=0, foot_l_dx=-5, foot_r_dx=5,
+             hand=(6, -15), sword_angle=95),
+    ]
+    return [compose(Porter(**p), **s) for s in specs]
+
+
 def save_strip(frames, path):
     strip = Image.new("RGBA", (FRAME * len(frames), FRAME), (0, 0, 0, 0))
     for i, f in enumerate(frames):
@@ -404,6 +513,10 @@ def main():
     for i in range(4):
         save_strip(make_attack(p, i),
                    os.path.join(OUT_DIR, f"ori_atk{i + 1}.png"))
+    # 重攻击三连：各 8 帧
+    for i in range(3):
+        save_strip(make_heavy(p, i),
+                   os.path.join(OUT_DIR, f"ori_heavy{i + 1}.png"))
 
 
 if __name__ == "__main__":

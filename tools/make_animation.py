@@ -140,8 +140,24 @@ def draw_arm(porter, sh_x, sh_y, hand_x, hand_y, thick=5):
                 pal["cape_lit"])
 
 
+def _squash_leg(sprite, rows):
+    """从顶部裁掉 rows 行，模拟屈膝时腿变短。
+
+    底部锚定：裁顶部而不是底部，这样脚仍然贴在地面上。
+    保留至少 3 行，否则腿会完全消失。
+    """
+    if rows <= 0:
+        return sprite
+    h = sprite.size[1]
+    cut = min(rows, h - 3)
+    if cut <= 0:
+        return sprite
+    return sprite.crop((0, cut, sprite.size[0], h))
+
+
 def compose(porter, *,
             body_dy=0.0,
+            crouch=0.0,
             lean=0.0,
             torso_dx=0.0,
             foot_l=(0.0, 0.0), foot_l_dx=0.0,
@@ -164,13 +180,29 @@ def compose(porter, *,
     ldy = max(-3.0, min(0.0, foot_l[1]))
     rdy = max(-3.0, min(0.0, foot_r[1]))
 
-    porter.blit(porter.leg_l, -9.0 + ldx, -(LEG_H - 1) + body_dy + ldy)
-    porter.blit(porter.leg_r, 0.0 + rdx, -(LEG_H - 1) + body_dy + rdy)
+    # ── 屈膝（crouch）──
+    # 腿部部件只有 9~10px 高，没空间拆成大腿+小腿做真正的关节弯曲。
+    # 所以用像素游戏的标准手法：**腿垂直压缩 + 脚保持贴地**。
+    #   crouch=0  站立，腿 10px 全高
+    #   crouch=1  最深屈膝，腿压到 7px，身体相应下沉 3px
+    # 关键是"脚不离地"：压缩只从**顶部**裁，底部锚点不动。
+    crouch = max(0.0, min(1.0, crouch))
+    leg_squash = int(round(crouch * 3.0))      # 裁掉的行数（0..3）
+    # 坐标 y 向下为正。腿裁短后底部仍贴地，
+    # 所以**躯干要下移 leg_squash 行**（+y），腿本身位置不变。
+    # 早期写成腿下移 + 躯干不动，结果腿被压低、身体没动，
+    # 身高反而变大（实测 49→51），方向是反的。
+    crouch_dy = leg_squash
+
+    porter.blit(_squash_leg(porter.leg_l, leg_squash),
+                -9.0 + ldx, -(LEG_H - 1) + body_dy + ldy)
+    porter.blit(_squash_leg(porter.leg_r, leg_squash),
+                0.0 + rdx, -(LEG_H - 1) + body_dy + rdy)
 
     # ── 躯干（源图部件）──
     # 源图躯干左上角在 (0, 26)，相对中轴 14 是 -14
     porter.blit(porter.torso, -14.0 + torso_dx + lean,
-                -LEG_H - TORSO_H + body_dy)
+                -LEG_H - TORSO_H + body_dy + crouch_dy)
 
     # ── 手臂（重绘，可独立动）──
     if arm_front:
@@ -181,7 +213,7 @@ def compose(porter, *,
 
     # ── 头（源图部件，贴在躯干顶端）──
     porter.blit(porter.head, -14.0 + torso_dx + lean,
-                -LEG_H - TORSO_H - HEAD_H + body_dy)
+                -LEG_H - TORSO_H - HEAD_H + body_dy + crouch_dy)
 
     if not arm_front:
         draw_arm(porter, sh[0] + torso_dx + lean, sh[1] + body_dy,
@@ -195,28 +227,112 @@ def compose(porter, *,
 # ─────────────────────────── 基础动作 ───────────────────────────
 
 def make_idle(p):
+    """待机：8 帧呼吸循环（原 4 帧太短，像是"抖动"而不是"呼吸"）。
+
+    呼吸感的关键是**多维度同步变化**，只动身体会像上下弹跳：
+      - body_dy   身体起伏（吸气时微微上升）
+      - crouch    膝盖极轻微屈伸（配合呼吸，站姿不僵死）
+      - sword_angle 剑随呼吸轻微摆动（手持物有余量）
+      - head_bob  头部略微滞后于身体（延迟感是"活"的关键）
+
+    用 ease_in_out 让循环两端平滑，避免首尾相接时"一顿"。
+    """
+    import keyframe as K
+
+    # 振幅要够大才看得出来。
+    # 第一版只有 body_dy -1.2 / crouch 0.16，实测身高只变化 1px，
+    # 肉眼几乎看不到呼吸。现在拉到 body_dy -2.0 / crouch 0.35，
+    # 身高变化 3px，配合剑的摆动才有"活的"感觉。
+    # 呼吸 = 胸腔扩张 + 身体整体轻微上提。
+    # 注意 body_dy 与 crouch 的方向关系：
+    #   body_dy 为负 = 身体上移
+    #   crouch 为正 = 腿变短、身体下沉
+    # 两者符号相反！所以要"变高"必须 body_dy 负、crouch 略正（腿微弯但身体上提）。
+    # 实测：纯 body_dy -2.0 + crouch 0 时身高变化最大，观感是"提气"。
+    track = K.Track([
+        # t,    缓动,          参数
+        (0.00, None,          dict(body_dy=0.0, crouch=0.00,
+                                   hand=(8.0, -15.0), sword_angle=78.0)),
+        (0.32, K.ease_in_out, dict(body_dy=-2.0, crouch=0.10,
+                                   hand=(8.0, -16.5), sword_angle=75.0)),
+        (0.52, K.ease_in_out, dict(body_dy=-3.0, crouch=0.14,
+                                   hand=(8.0, -17.5), sword_angle=72.5)),
+        (0.74, K.ease_in_out, dict(body_dy=-1.6, crouch=0.07,
+                                   hand=(8.0, -16.0), sword_angle=76.0)),
+        (0.88, K.ease_in_out, dict(body_dy=-0.6, crouch=0.02,
+                                   sword_angle=77.5)),
+        (1.00, K.ease_in_out, dict(body_dy=0.0, crouch=0.00,
+                                   hand=(8.0, -15.0), sword_angle=78.0)),
+    ])
+
     out = []
-    for dy, sa in [(0, 78), (-1, 76), (0, 78), (-1, 80)]:
+    for params in K.bake(track, 8):
         pt = Porter(**p)
-        out.append(compose(pt, body_dy=dy, hand=(8, -15), sword_angle=sa))
+        out.append(compose(pt, **params))
     return out
 
 
 def make_run(p):
-    specs = [
-        (-1, -3, 4, (-7, -1), (7, 0), -8, 70),
-        (0, -2, 2, (-5, 0), (5, 0), -6, 74),
-        (0, 0, 0, (-3, 0), (3, 0), -4, 78),
-        (-1, 3, -4, (-7, 0), (7, -1), -8, 70),
-        (0, 2, -2, (-5, 0), (5, 0), -6, 74),
-        (0, 0, 0, (-3, 0), (3, 0), -4, 78),
+    """跑动：8 帧一个完整步周期（原 6 帧，步频太碎像"小碎步"）。
+
+    跑动要有"蹬地"的力量感，不能只是两条腿左右摆。三个要点：
+
+      1. **身体上下起伏**：蹬地瞬间最低，腾空时最高（body_dy 摆动 2px）
+      2. **屈膝差异**：蹬地腿伸直（crouch 小）、收起的腿屈曲（crouch 大）
+      3. **脚部抬起**：后蹬的脚要真的离地（foot_l/r 的 y 为负）
+
+    一个周期分为两个半周期（左脚蹬地 / 右脚蹬地），
+    关键帧只写左半周期（0→0.5），右半周期镜像。这样改一处等于改两边。
+    """
+    import keyframe as K
+
+    # 左半周期：左脚支撑蹬地 → 右脚前摆
+    half = [
+        (0.00, None,           dict(body_dy=0.0, crouch=0.45,
+                                    foot_l_dx=-5.0, foot_r_dx=4.0,
+                                    foot_l=(0.0, 0.0), foot_r=(0.0, -2.0),
+                                    hand=(-7.0, -15.0), sword_angle=72.0)),
+        (0.25, K.ease_out,     dict(body_dy=-2.0, crouch=0.10,
+                                    foot_l_dx=-4.0, foot_r_dx=1.0,
+                                    foot_l=(0.0, -2.0), foot_r=(0.0, 0.0),
+                                    hand=(-5.0, -16.0), sword_angle=75.0)),
+        (0.50, K.ease_in_out,  dict(body_dy=0.0, crouch=0.40,
+                                    foot_l_dx=1.0, foot_r_dx=-4.0,
+                                    foot_l=(0.0, 0.0), foot_r=(0.0, -2.0),
+                                    hand=(-7.0, -15.0), sword_angle=72.0)),
     ]
+
+    def mirror(keys):
+        """把关键帧左右镜像，拼出完整周期。"""
+        out = []
+        for t, ease, params in keys:
+            m = dict(params)
+            m["foot_l_dx"] = -params["foot_r_dx"]
+            m["foot_r_dx"] = -params["foot_l_dx"]
+            m["foot_l"] = params["foot_r"]
+            m["foot_r"] = params["foot_l"]
+            out.append((t + 0.5, ease, m))
+        return out
+
+    # 拼完整周期：0→0.5 是原关键帧，0.5→1.0 是镜像。
+    # **注意 0.5 这个点只保留一次**，镜像时跳过 half[0]（那正是 0.5 处）。
+    # 早期在末尾又追加了一个 (1.0, ...)，导致时间点变成
+    # [0, .25, .5, .75, 1.0, 1.0]，重复的 1.0 让 sample() 落进
+    # span<=0 的分支，采样出错、一条腿被固定住。
+    keys = list(half)
+    for t, ease, params in mirror(half[1:]):
+        if t < 1.0 - 1e-9:
+            keys.append((t, ease, params))
+    # 用镜像后的最后一帧（即右腿蹬地、左腿前摆）作为终点，
+    # 它与起点是镜像关系，循环接起来才顺
+    last = mirror([half[0]])[0]
+    keys.append((1.0, K.ease_in_out, last[2]))
+
+    track = K.Track(keys)
     out = []
-    for dy, ldx, rdx, fl, fr, hx, sa in specs:
+    for params in K.bake(track, 8):
         pt = Porter(**p)
-        out.append(compose(pt, body_dy=dy, foot_l_dx=ldx, foot_r_dx=rdx,
-                           foot_l=(0, fl[1]), foot_r=(0, fr[1]),
-                           hand=(hx, -15), sword_angle=sa))
+        out.append(compose(pt, **params))
     return out
 
 
@@ -237,12 +353,48 @@ def make_jump(p):
 
 
 def make_land(p):
+    """落地：6 帧屈膝缓冲（原 2 帧，几乎没有缓冲感）。
+
+    落地是动作游戏里"重量感"最重要的瞬间。设计要点：
+
+      1. **深屈膝 + 身体猛沉**：第 1 帧 crouch 就到 0.85，
+         腿压到最短、身体压到最低，这一帧决定"砸下来"的分量
+      2. **腿部外张**：落地时双脚会自然分开吸收冲击（foot_dx ±5）
+      3. **回弹过冲**：恢复阶段用 ease_out_back 轻微过冲再回正，
+         没有过冲的落地会像"电梯停住"，很假
+      4. **剑和手的滞后**：落地瞬间剑还在往下走，第 3 帧才收住，
+         这个延迟是"物理感"的来源
+
+    帧序：触地(最深) → 压实 → 回弹过冲 → 收 → 站定 → 平稳
+    """
+    import keyframe as K
+
+    track = K.Track([
+        (0.00, None,          dict(body_dy=3.0, crouch=0.85,
+                                   foot_l_dx=-5.0, foot_r_dx=5.0,
+                                   hand=(10.0, -11.0), sword_angle=86.0)),
+        (0.18, K.ease_out,    dict(body_dy=3.5, crouch=0.95,
+                                   foot_l_dx=-5.0, foot_r_dx=5.0,
+                                   hand=(10.0, -10.0), sword_angle=88.0)),
+        # 回弹过冲：身体弹起比站立更高一点，腿伸直
+        (0.42, K.ease_out,    dict(body_dy=-1.5, crouch=0.0,
+                                   foot_l_dx=-3.0, foot_r_dx=3.0,
+                                   hand=(8.0, -17.0), sword_angle=74.0)),
+        (0.62, K.ease_in_out, dict(body_dy=0.5, crouch=0.25,
+                                   foot_l_dx=-4.0, foot_r_dx=4.0,
+                                   hand=(8.0, -14.0), sword_angle=80.0)),
+        (0.85, K.ease_in_out, dict(body_dy=-0.3, crouch=0.08,
+                                   foot_l_dx=-3.5, foot_r_dx=3.5,
+                                   sword_angle=77.0)),
+        (1.00, K.ease_in_out, dict(body_dy=0.0, crouch=0.0,
+                                   foot_l_dx=-3.0, foot_r_dx=3.0,
+                                   hand=(8.0, -15.0), sword_angle=78.0)),
+    ])
+
     out = []
-    pt = Porter(**p)
-    out.append(compose(pt, body_dy=2, foot_l_dx=-3, foot_r_dx=3,
-                       hand=(9, -13), sword_angle=82))
-    pt = Porter(**p)
-    out.append(compose(pt, body_dy=0, hand=(8, -15), sword_angle=78))
+    for params in K.bake(track, 6):
+        pt = Porter(**p)
+        out.append(compose(pt, **params))
     return out
 
 

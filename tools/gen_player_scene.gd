@@ -9,10 +9,10 @@ const OUT := "res://scenes/player/player.tscn"
 
 func _init() -> void:
 	var anims := [
-		{"name": "idle", "prefix": "ori_idle", "count": 4, "loop": true, "fps": 6.0},
-		{"name": "run", "prefix": "ori_run", "count": 6, "loop": true, "fps": 12.0},
+		{"name": "idle", "prefix": "ori_idle", "count": 8, "loop": true, "fps": 8.0},
+		{"name": "run", "prefix": "ori_run", "count": 8, "loop": true, "fps": 12.0},
 		{"name": "jump", "prefix": "ori_jump", "count": 3, "loop": false, "fps": 8.0},
-		{"name": "land", "prefix": "ori_land", "count": 2, "loop": false, "fps": 12.0},
+		{"name": "land", "prefix": "ori_land", "count": 6, "loop": false, "fps": 0.0},
 		{"name": "atk1", "prefix": "ori_atk1", "count": 6, "loop": false, "fps": 0.0},
 		{"name": "atk2", "prefix": "ori_atk2", "count": 6, "loop": false, "fps": 0.0},
 		{"name": "atk3", "prefix": "ori_atk3", "count": 6, "loop": false, "fps": 0.0},

@@ -24,10 +24,10 @@ FRAME = 80
 
 # 图集名 → (帧数, 循环, 帧率)
 SPECS = {
-    "ori_idle": (4, True, 6.0),
-    "ori_run": (6, True, 12.0),
+    "ori_idle": (8, True, 8.0),
+    "ori_run": (8, True, 12.0),
     "ori_jump": (3, False, 8.0),
-    "ori_land": (2, False, 12.0),
+    "ori_land": (6, False, 0.0),
     # 轻攻击四连：每段 3 帧，不循环，靠逻辑控制推进
     "ori_atk1": (6, False, 0.0),
     "ori_atk2": (6, False, 0.0),

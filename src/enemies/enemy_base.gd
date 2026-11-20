@@ -38,6 +38,7 @@ var facing := -1
 var _timer := 0.0
 var _cooldown := 0.0
 var _flash := 0.0
+var _hurt_duration := 0.12     # 本次硬直的初始时长（用于把 hurt 动画映射到硬直时间段）
 var _player: Node2D = null
 var _anim: AnimatedSprite2D
 var _hitbox_already_hit := false
@@ -77,6 +78,7 @@ func _make_frames() -> SpriteFrames:
 		["idle", 4, 6.0],
 		["run", 8, 10.0],
 		["attack", 8, 10.0],
+		["hurt", 3, 12.0],
 	]
 	for spec in specs:
 		var aname: String = spec[0]
@@ -226,6 +228,9 @@ func _do_hurt(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, 500.0 * delta)
 	if _timer <= 0.0:
 		state = State.CHASE
+		# 退出硬直时恢复播放，否则会停在被 pause 的 hurt 最后一帧
+		if _anim:
+			_anim.play("idle")
 
 
 func _set_attack_box(on: bool) -> void:
@@ -287,7 +292,8 @@ func take_hit(amount: int, from_x: float) -> void:
 	if heavy or state in [State.IDLE, State.CHASE]:
 		if state != State.DEAD:
 			state = State.HURT
-			_timer = 0.25 if heavy else 0.12
+			_hurt_duration = 0.25 if heavy else 0.12
+			_timer = _hurt_duration
 			_set_attack_box(false)
 
 	if hp <= 0:
@@ -333,6 +339,21 @@ func _sync_anim() -> void:
 
 	if state == State.WINDUP or state == State.ATTACK:
 		return          # 由 _do_windup/_do_attack 控制帧
+
+	# 硬直：播 hurt 动画并按剩余时间推进帧。
+	# 早期版本没处理 HURT，受击时敌人还在播 idle/run，
+	# 看起来像「没被打到」——这是打击感缺失的主因之一。
+	if state == State.HURT:
+		if _anim.sprite_frames.has_animation("hurt"):
+			if _anim.animation != "hurt":
+				_anim.play("hurt")
+				_anim.frame = 0
+			# 3 帧按剩余硬直时间映射，保证硬直结束时刚好播完
+			var dur := _hurt_duration
+			var p := 1.0 - clampf(_timer / maxf(dur, 0.01), 0.0, 1.0)
+			_anim.frame = clampi(int(p * 3.0), 0, 2)
+			_anim.pause()
+		return
 
 	var aname := "idle"
 	if state == State.CHASE and absf(velocity.x) > 4.0:

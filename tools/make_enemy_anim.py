@@ -113,6 +113,14 @@ def mossling_anims():
     atk.append(compose(s, dx=2))                    # 回位
     out["attack"] = atk
 
+    # 硬直：被击中瞬间向上弹起 + 压扁，然后回落
+    # 三帧足够表达「被打飞→疼→站稳」，再多会拖慢战斗节奏
+    hurt = []
+    hurt.append(compose(s, dy=-3, squash=0.10, dx=-2))   # 被打飞，身体缩
+    hurt.append(compose(s, dy=-1, squash=0.05, dx=-3))   # 回落
+    hurt.append(compose(s, dy=0, squash=0.02, dx=-2))    # 站稳
+    out["hurt"] = hurt
+
     return out
 
 
@@ -144,6 +152,13 @@ def lanternbug_anims():
     atk.append(compose(s, dy=0, dx=1))              # 余韵
     atk.append(compose(s, dy=-1))                   # 回位
     out["attack"] = atk
+
+    # 硬直：灯体被击退，往反方向荡开再回正（悬挂物会先晃）
+    hurt = []
+    hurt.append(compose(s, dx=-4, dy=-1, squash=0.06))   # 被击退
+    hurt.append(compose(s, dx=-2, dy=0, stretch=0.04))   # 回摆
+    hurt.append(compose(s, dx=0, dy=0))                  # 归位
+    out["hurt"] = hurt
 
     return out
 
@@ -178,6 +193,14 @@ def stonepaw_anims():
     atk.append(compose(s, dx=4, dy=1, squash=0.06))      # 余震
     atk.append(compose(s, dx=2))                    # 回位
     out["attack"] = atk
+
+    # 硬直：石守很重，被打时只是整体后错一格 + 轻微下沉，
+    # 不做弹跳（那会显得太轻，与"重甲"设定冲突）
+    hurt = []
+    hurt.append(compose(s, dx=-4, dy=1, squash=0.04))    # 后错下沉
+    hurt.append(compose(s, dx=-3, dy=0, squash=0.02))    # 稳住
+    hurt.append(compose(s, dx=-2, dy=0))                 # 归位
+    out["hurt"] = hurt
 
     return out
 

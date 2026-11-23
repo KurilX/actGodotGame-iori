@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 场景美术规范验证：调色板约束、动态植被、风吹动画
 ##
 ## 运行：godot --headless --path . --script tools/verify_art.gd -- --autoplay
@@ -263,6 +263,45 @@ func _init() -> void:
 		_check(purple_leak == 0,
 			   "夜色区无黄昏紫渗漏（0/%d 采样）" % sampled,
 			   "有 %d 个紫色像素混入夜幕" % purple_leak)
+
+	# ── 11. 卡通滤镜：存在、层级正确、量化没失效 ──
+	#
+	# 滤镜是**全屏着色器**，两个必须防住的坑：
+	#   · 量化顺序写错 → 整屏色数暴涨（实测曾从 45 涨到 452）
+	#   · 层级放错 → 把血条/连击条/文字也一起调色
+	var filt = null
+	for n in _walk(root):
+		var ss = n.get_script()
+		if ss != null and str(ss.resource_path).contains("cartoon_filter"):
+			filt = n
+			break
+	_check(filt != null, "卡通滤镜节点存在", "未找到 cartoon_filter")
+
+	if filt != null:
+		_check(filt.has_method("set_amount"), "滤镜可调节强度", "缺 set_amount")
+		var lay: Node = filt.get_parent()
+		if lay is CanvasLayer:
+			_check(lay.layer < 80,
+				   "滤镜层级(%d)低于 UI(80)，不会把 UI 一起调色" % lay.layer,
+				   "层级 %d 会盖住血条/连击条" % lay.layer)
+		_check(filt.is_enabled(), "滤镜默认开启", "未启用")
+		# 着色器必须真的挂上（没挂时画面上什么都不会变，很难察觉）
+		var mat = filt.get("material")
+		_check(mat is ShaderMaterial, "滤镜着色器材质已挂载",
+			   "material 不是 ShaderMaterial")
+		if mat is ShaderMaterial:
+			_check(mat.shader != null, "着色器资源已加载", "shader 为 null")
+			# 验证量化参数存在。
+			# **不能只 get_shader_parameter**：uniform 未通过代码赋值时
+			# get 返回 null（不回落 shader 内声明的默认值）。
+			var has_steps := false
+			if mat.shader != null:
+				for u in mat.shader.get_shader_uniform_list():
+					if str(u["name"]) == "color_steps":
+						has_steps = true
+						break
+			_check(has_steps, "着色器内含色阶量化参数",
+				   "缺 color_steps uniform")
 
 	_finish()
 

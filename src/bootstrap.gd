@@ -39,6 +39,7 @@ const MainMenu := preload("res://src/ui/main_menu.gd")
 const SettingsPanel := preload("res://src/ui/settings_panel.gd")
 const TutorialHints := preload("res://src/ui/tutorial_hints.gd")
 const ParrySpark := preload("res://src/skills/parry_spark.gd")
+const CartoonFilter := preload("res://src/ui/cartoon_filter.gd")
 
 var skill_tree: Node
 var save: Node
@@ -57,6 +58,7 @@ var _banner: Control
 var _panel: Control
 var _tutorial: Control
 var _touch: Control
+var _filter: Control
 
 # 需要随游戏创建/销毁的层（菜单常驻的不动）
 var _game_layers: Array[CanvasLayer] = []
@@ -94,6 +96,18 @@ func _ready() -> void:
 		if _mode == Mode.GAME:
 			_return_to_menu())
 	_settings.volume_changed.connect(_on_volume)
+
+	# ── 卡通滤镜（layer 50）──
+	#
+	# 放在**世界之上、所有 UI 之下**：
+	#   · 高于世界（layer 0）→ 能对整个游戏画面调色
+	#   · 低于 UI（80/85/88/90/92/100）→ 不会把血条、连击条、
+	#     菜单文字也一起调暖调色，否则颜色会偏离设计值
+	# **注意**：滤镜脚本 extends ColorRect，不能用 _make_layer
+	# （它创建的是 Control，set_script 会报
+	#  "Script inherits from native type 'ColorRect'" 而静默失败）。
+	# 这里手动建 CanvasLayer + ColorRect。
+	_filter = _make_filter_layer("CartoonFilterLayer", 50)
 
 	# ── 游戏 UI 层：先建好但隐藏，进游戏才显示 ──
 	_bt = _make_game_layer("BulletTimeLayer", 80, BulletTimeFx, "BulletTimeFx")
@@ -320,6 +334,26 @@ func _make_layer(layer_name: String, layer_idx: int, script: Script,
 	c.set_script(script)
 	cl.add_child(c)
 	return c
+
+
+func _make_filter_layer(layer_name: String, layer_idx: int) -> Control:
+	"""构造卡通滤镜层。
+
+	单独一个函数的原因：滤镜节点必须是 **ColorRect**（要全屏着色器），
+	而 `_make_layer` 固定创建 Control —— 两者类型不兼容，
+	`set_script` 会失败且只打一条 ERROR，节点变成空 Control。
+	"""
+	var cl := CanvasLayer.new()
+	cl.name = layer_name
+	cl.layer = layer_idx
+	add_child(cl)
+
+	var rect := ColorRect.new()
+	rect.name = "CartoonFilter"
+	rect.set_script(CartoonFilter)
+	cl.add_child(rect)
+	_game_layers.append(cl)
+	return rect
 
 
 func _make_game_layer(layer_name: String, layer_idx: int, script: Script,

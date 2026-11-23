@@ -106,11 +106,17 @@ func _build_visual() -> void:
 func _make_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
 	sf.remove_animation("default")
+	# **帧数不再硬编码**，而是自动探测磁盘上有多少帧。
+	#
+	# 原因：三个敌人的待机帧数现在不同（苔团 6 / 灯笼虫 6 / 石守 8），
+	# 写死一个数字会让帧数少的敌人读到不存在的文件（静默跳过 → 动画卡住），
+	# 也会让帧数多的敌人只播前 4 帧。
+	# 用"探测到不存在的文件就停"的规则，改美术不用同步改代码。
 	var specs := [
-		["idle", 4, 6.0],
-		["run", 8, 10.0],
-		["attack", 8, 10.0],
-		["hurt", 3, 12.0],
+		["idle", 0, 6.0],
+		["run", 0, 10.0],
+		["attack", 0, 10.0],
+		["hurt", 0, 12.0],
 	]
 	for spec in specs:
 		var aname: String = spec[0]
@@ -119,10 +125,16 @@ func _make_frames() -> SpriteFrames:
 		sf.add_animation(aname)
 		sf.set_animation_speed(aname, fps)
 		sf.set_animation_loop(aname, aname != "attack")
-		for i in count:
+		# count == 0 表示"自动探测到没有为止"
+		var i := 0
+		while true:
+			if count > 0 and i >= count:
+				break
 			var path := "res://art/enemies/frames/%s_%s_%d.png" % [sprite_name, aname, i]
-			if ResourceLoader.exists(path):
-				sf.add_frame(aname, load(path))
+			if not ResourceLoader.exists(path):
+				break
+			sf.add_frame(aname, load(path))
+			i += 1
 	return sf
 
 

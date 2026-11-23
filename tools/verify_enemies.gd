@@ -51,6 +51,43 @@ func _init() -> void:
 	_check(moss.hp == 12 and lantern.hp == 9 and stone.hp == 26,
 	       "3. 三者血量符合定位（苔团12/灯笼虫9/石守26）",
 	       "实测 %d/%d/%d" % [moss.hp, lantern.hp, stone.hp])
+	# ── 3b. 待机动作：**必须看得出来在动** ──
+	#
+	# 用户明确要求"怪物静止状态也要有待机动作"。
+	# 原来三个敌人都只有 4 帧、幅度 1~2px —— 在 30px 体型上等于静止。
+	# 这里直接量像素包围盒的变化，不是看"动画在播"就算了。
+	for e in [moss, lantern, stone]:
+		var anim = null
+		for n in _walk(e):
+			if n is AnimatedSprite2D:
+				anim = n
+				break
+		if anim == null:
+			continue
+		var frames: int = anim.sprite_frames.get_frame_count("idle")
+		_check(frames >= 6, "%s 待机帧数 ≥ 6（实际 %d）" % [e.name, frames],
+			   "只有 %d 帧，动作会显得僵硬" % frames)
+		# 量所有待机帧的包围盒，看顶部位移
+		var tops: Array[float] = []
+		var hs: Array[float] = []
+		for f in frames:
+			var tex: Texture2D = anim.sprite_frames.get_frame_texture("idle", f)
+			if tex == null:
+				continue
+			var img: Image = tex.get_image()
+			var used := img.get_used_rect()
+			tops.append(float(used.position.y))
+			hs.append(float(used.size.y))
+		if tops.size() >= 2:
+			var top_span: float = tops.max() - tops.min()
+			var h_span: float = hs.max() - hs.min()
+			var amp: float = maxf(top_span, h_span)
+			# 幅度至少 3px 才看得见（1~2px 在 30px 体型上是噪音）
+			_check(amp >= 3.0,
+				   "%s 待机幅度 ≥ 3px（位移 %.0f / 高度 %.0f）" % [
+					   e.name, top_span, h_span],
+				   "幅度只有 %.1fpx，肉眼几乎看不出在动" % amp)
+
 
 	# ── 4. 飞行单位不受重力 ──
 	await _wait(40)
@@ -158,3 +195,10 @@ func _find_all_by_base(node: Node) -> Array:
 	for c in node.get_children():
 		out.append_array(_find_all_by_base(c))
 	return out
+
+
+func _walk(n):
+	var o = [n]
+	for c in n.get_children():
+		o.append_array(_walk(c))
+	return o

@@ -26,6 +26,10 @@ var boss: Node2D = null
 const ROOM_W := 2400
 const ROOM_H := 540
 
+# 地面顶部 y 坐标（与 SOLIDS 里地面矩形一致）。
+# 植被都种在这条线上。
+const GROUND_Y_FOR_DECO := 480.0
+
 # 段边界（世界坐标 x）
 const TUTORIAL_END := 1560.0
 const BOSS_ZONE_START := 1560.0
@@ -91,8 +95,115 @@ const SPAWN := Vector2(80, 440)
 func _ready() -> void:
 	_build_visuals()
 	_build_solids()
+	_build_wind_life()
 	_build_one_way()
 	_spawn_player()
+
+
+const WindSprite := preload("res://src/world/wind_sprite.gd")
+const WindPetals := preload("res://src/world/wind_petals.gd")
+
+
+func _build_wind_life() -> void:
+	"""动态植被：会随风摇摆的草、花、芦苇 + 飘落的花瓣。
+
+	## 为什么用代码画而不是贴图
+
+	一棵会动的草如果逐帧画，12 帧 × 几十棵 = 帧数爆炸，而且每棵的
+	摆动相位还必须一致（否则像各摆各的）。用自绘 + 正弦相位：
+	  · 一棵草只有几个控制点，绘制开销可忽略
+	  · 相位由 x 坐标决定，天然形成"风从右往左推"的波浪
+	  · 想加就加，不受美术资源限制
+
+	## 分层
+
+	  z=-4  背景草丛（远、矮、暗，不遮挡）
+	  z=-1  前景草丛（近、高、亮，从画面前景探出）
+	  z=-3  飘落花瓣（在草丛之上、角色之下）
+	"""
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20261124
+
+	# ── 背景草丛：沿地面稀疏分布 ──
+	var bg := Node2D.new()
+	bg.name = "WindGrassBack"
+	bg.z_index = -4
+	add_child(bg)
+
+	var x := 20.0
+	while x < ROOM_W - 20:
+		var w: Node2D = WindSprite.new()
+		w.wind_freq = rng.randf_range(0.85, 1.25)
+		w.wind_amp = rng.randf_range(2.2, 3.4)
+		w.wind_speed = rng.randf_range(28.0, 40.0)
+		w.position = Vector2(x, GROUND_Y_FOR_DECO)
+		var n: int = rng.randi_range(3, 6)
+		for i in n:
+			var h: float = rng.randf_range(9.0, 18.0)
+			var dx: float = rng.randf_range(-4.0, 4.0)
+			var col_kind: int = rng.randi_range(0, 2)
+			var col: Color
+			match col_kind:
+				0:
+					col = Color("#4A6B4F")      # moss
+				1:
+					col = Color("#2E4634")      # moss_dk
+				_:
+					col = Color("#5A8A5E")      # grass
+			w.add_blade(dx, h, 1.6, col)
+		bg.add_child(w)
+		x += rng.randf_range(14.0, 34.0)
+
+	# ── 前景草丛：更少但更高，从画面下沿探出 ──
+	var fg := Node2D.new()
+	fg.name = "WindGrassFront"
+	fg.z_index = -1
+	add_child(fg)
+
+	x = 40.0
+	while x < ROOM_W - 40:
+		var w2: Node2D = WindSprite.new()
+		w2.wind_freq = rng.randf_range(0.9, 1.3)
+		w2.wind_amp = rng.randf_range(3.4, 5.2)   # 前景摆幅更大
+		w2.position = Vector2(x, GROUND_Y_FOR_DECO + 4.0)
+		for i in rng.randi_range(4, 7):
+			var h2: float = rng.randf_range(14.0, 26.0)
+			w2.add_blade(rng.randf_range(-6.0, 6.0), h2, 1.4,
+						 Color("#5A8A5E") if rng.randf() < 0.6
+						 else Color("#6E9A6B"))
+		fg.add_child(w2)
+		x += rng.randf_range(55.0, 110.0)
+
+	# ── 小野花：点缀在草丛之间 ──
+	var flowers := Node2D.new()
+	flowers.name = "WindFlowers"
+	flowers.z_index = -3
+	add_child(flowers)
+	x = 60.0
+	while x < ROOM_W - 60:
+		var fw: Node2D = WindSprite.new()
+		fw.wind_freq = rng.randf_range(1.0, 1.4)
+		fw.wind_amp = rng.randf_range(2.8, 4.0)
+		fw.position = Vector2(x, GROUND_Y_FOR_DECO)
+		# 花茎
+		fw.add_blade(0.0, rng.randf_range(9.0, 15.0), 1.0,
+					 Color("#4A6B4F"))
+		flowers.add_child(fw)
+		# 花冠：用自绘节点画一个小十字花
+		var petal: Node2D = Node2D.new()
+		petal.position = Vector2(x, GROUND_Y_FOR_DECO - 12.0)
+		petal.z_index = -3
+		petal.set_script(preload("res://src/world/wind_flower.gd"))
+		petal.set("petal_color", Color("#FFB8D0") if rng.randf() < 0.7
+				  else Color("#FFE9A8"))
+		petal.set("stem_x", x)
+		add_child(petal)
+		x += rng.randf_range(70.0, 150.0)
+
+	# ── 飘落花瓣 ──
+	var petals := WindPetals.new()
+	petals.name = "WindPetals"
+	add_child(petals)
 
 
 func _build_solids() -> void:

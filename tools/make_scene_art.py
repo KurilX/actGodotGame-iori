@@ -1,4 +1,4 @@
-"""场景美术生成器：把灰盒替换成有氛围的夜景。
+﻿"""场景美术生成器：把灰盒替换成有氛围的夜景。
 
 ## 设计思路
 
@@ -32,25 +32,56 @@ OUT = os.path.join(ROOT, "art", "scene")
 
 # ── 主色板（严格取自 docs/02-像素美术规范.md）──
 P = {
+    # ── 墨与夜（4）──
     "ink":      "#12142A",   # 01 最暗：描边
     "night_far":  "#1B2244",  # 02 夜色远
     "night_mid":  "#2A3A63",  # 03 夜色中
     "night_near": "#3D5385",  # 04 夜色近
+
+    # ── 月与光（2）──
     "moon_hi":  "#8FD3E8",   # 05 月光高光
     "moon":     "#D8F0F8",   # 06 月白
-    "stone":    "#5A6478",   # 07 石中
-    "stone_dk": "#394051",   # 08 石暗
-    "stone_hi": "#7B8699",   # 09 石亮
-    "moss":     "#4A6B4F",   # 10 苔中
-    "moss_dk":  "#2E4634",   # 11 苔暗
-    "moss_hi":  "#6E9A6B",   # 12 苔亮
-    "wist":     "#7A5FA8",   # 13 紫藤中
-    "wist_dk":  "#4F3D74",   # 14 紫藤暗
-    "wist_hi":  "#A98FD6",   # 15 紫藤亮
-    "lant_hi":  "#FFE9A8",   # 16 灯笼亮
-    "lant":     "#FFC46B",   # 17 灯笼中
-    "lant_dk":  "#E0913F",   # 18 灯笼暗
+
+    # ── 石与土（4）──
+    "stone_hi": "#7B8699",   # 07 石亮（顶面受光）
+    "stone":    "#5A6478",   # 08 石中（立面）
+    "stone_dk": "#394051",   # 09 石暗（阴影/砖缝）
+    "ear":      "#3D3348",   # 10 泥土
+
+    # ── 苔与草（4）──
+    "moss_hi":  "#6E9A6B",   # 11 苔亮
+    "moss":     "#4A6B4F",   # 12 苔中
+    "moss_dk":  "#2E4634",   # 13 苔暗
+    "grass":    "#5A8A5E",   # 14 草（比苔更黄一点）
+
+    # ── 紫藤（3）──
+    "wist_hi":  "#A98FD6",   # 15
+    "wist":     "#7A5FA8",   # 16
+    "wist_dk":  "#4F3D74",   # 17
+
+    # ── 灯笼/暖光（3）──
+    "lant_hi":  "#FFE9A8",   # 18
+    "lant":     "#FFC46B",   # 19
+    "lant_dk":  "#E0913F",   # 20
+
+    # ── 空气透视（2）：越远的山越接近这两个色 ──
+    "haze_far":  "#5A4A72",  # 21 远山薄雾
+    "haze_near": "#6E5580",  # 22 近山薄雾
+
+    # ── 黄昏（4）：教程关的暖调，替换夜色/山色 ──
+    "dusk_sky":  "#8A5C86",  # 23 暮色紫红
+    "dusk_glow": "#B8738C",  # 24 霞光
+    "dusk_mtn":  "#5E4270",  # 25 暮山
+    "dusk_mtn_dk": "#4A3560",  # 26 暮山暗
+
+    # ── 花瓣（2）：风的可视化 ──
+    "petal":    "#FFB8D0",   # 27
+    "petal_dk": "#D98BA8",   # 28
 }
+
+
+# 树下/草根处的阴影色
+SHADOW = "#1A1526"
 
 # 4×4 Bayer 有序抖动矩阵（模块级：天空、月亮光晕、灯笼光晕都要用）
 BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
@@ -65,15 +96,24 @@ TUTORIAL_END = 1560
 # **必须比夜色明显亮**：第一版用了偏暗的紫，截图出来和主关卡几乎没区别，
 # 玩家感受不到"这是另一个地方"。整体提亮 + 加橙调。
 DUSK = {
-    "sky_far":  "#6B4E7A",   # 暮色远（亮紫）
-    "sky_mid":  "#8A5C86",   # 暮色中（紫红）
-    "sky_near": "#B8738C",   # 暮色近（霞光）
-    "mtn_far":  "#4A3560",   # 远山（紫，但比天空暗）
-    "mtn_mid":  "#5E4270",
-    "mtn_near": "#7A5580",
-    "sun":      "#FFC46B",   # 落日
-    "sun_hi":   "#FFE9A8",
+    "sky_far":  P["dusk_mtn_dk"],   # 暮色远
+    "sky_mid":  P["dusk_sky"],      # 暮色中
+    "sky_near": P["dusk_glow"],     # 暮色近（霞光）
+    "mtn_far":  P["dusk_mtn_dk"],
+    "mtn_mid":  P["dusk_mtn"],
+    "mtn_near": P["dusk_sky"],
+    "sun":      P["lant"],
+    "sun_hi":   P["lant_hi"],
 }
+# **把黄昏色登记进主色板**。
+#
+# 必要原因：DUSK 里最早是裸十六进制，天空/远山直接用 hex_rgb() 画，
+# 绕过了 P —— 结果场景用色统计到 31~33 色，超出 28 色硬上限。
+# 登记之后它们就是合法调色板成员。
+for _dk, _dv in list(DUSK.items()):
+    if not any(_existing.lower() == _dv.lower() for _existing in P.values()):
+        P["dusk_" + _dk] = _dv
+
 GROUND_Y = 480          # 地面顶部（与 SOLIDS 一致）
 
 
@@ -110,10 +150,13 @@ def make_sky():
     # 两套配色：x < TUTORIAL_END 用黄昏，x >= 用夜色。
     # 在边界前后 120px 内做**抖动混合**：黄昏色和夜色按比例交错，
     # 远看是平滑过渡，近看仍是纯色块（不破坏像素感、不引入新颜色）。
+    # **只从调色板取值，不计算中间色**。
+    # 第一版用 hex_rgb() 直接算，产生了 7 个不在调色板里的色
+    # （用色统计 29/28）。像素风要求所有颜色必须是调色板成员。
     dusk_stops = [
-        (0.00, hex_rgb(DUSK["sky_far"]) + (255,)),
-        (0.50, hex_rgb(DUSK["sky_mid"]) + (255,)),
-        (1.00, hex_rgb(DUSK["sky_near"]) + (255,)),
+        (0.00, hx("dusk_mtn_dk")),
+        (0.50, hx("dusk_sky")),
+        (1.00, hx("dusk_glow")),
     ]
     night_stops = [
         (0.00, hx("night_far")),
@@ -124,7 +167,6 @@ def make_sky():
     def pick_stops(x):
         """返回该 x 位置应使用的配色。过渡区里按 x 决定，由抖动实现混合。"""
         return dusk_stops if x < TUTORIAL_END else night_stops
-
     BLEND = 120
 
     for y in range(int(GROUND_Y)):
@@ -155,29 +197,59 @@ def make_sky():
             c = c1 if local > th else c0
             px[x, y] = c
 
-    # ── 远山三层：越远越暗、越平缓 ──
+    # ── 远山：**五层**（原 3 层）──
+    #
+    # 原来只有 3 层纯色山，看起来像剪纸。改进点：
+    #   1. 加两层「薄雾山」做空气透视 —— 越远的山越接近天空色，
+    #      这是产生"景深"最廉价也最有效的手段
+    #   2. 每个山脊加**边缘高光**：山体顶部 1~2px 用亮一档的颜色，
+    #      模拟天光照在山脊上，山的立体感立刻出来
+    #   3. 山体内部加低频色块扰动，避免大面积纯色
     rng = random.Random(20261120)
-    # 波长要远大于画面宽容度才像"山"，早期用 120~210 导致每屏出现 5~8 个峰，
-    # 看起来是锯齿不是山。改成波长 380~620，每屏只有 1~2 个主峰。
-    # **重要**：相机被 limit_bottom=540 卡住，玩家站地面时
-    # 可见区域只有 y=270~540（视口 270 高）。远山必须落在这个区间内，
-    # 否则玩家永远看不到（第一版放在 y=150~288，结果整片山都在画面外）。
+
+    # (夜色, 黄昏色, 基准高度, 起伏幅度, 波长, 是否加脊线高光)
+    # (夜色, 黄昏色, 夜色高光, 黄昏高光, 基准高度, 起伏, 波长, 是否加脊线)
     layers = [
-        # (夜色, 黄昏色, 基准高度, 起伏幅度, 波长)
-        (hx("night_far"),  hex_rgb(DUSK["mtn_far"]) + (255,),  318, 26, 620),
-        (hx("night_mid"),  hex_rgb(DUSK["mtn_mid"]) + (255,),  368, 32, 460),
-        (hx("night_near"), hex_rgb(DUSK["mtn_near"]) + (255,), 420, 38, 380),
+        # 最远：薄雾山（贴着天空色，几乎融进去）
+        (hx("haze_far"),   hx("haze_far"),   hx("haze_far"),   hx("haze_far"),   300, 30, 700, False),
+        # 远
+        (hx("night_far"),  hx("dusk_mtn_dk"), hx("haze_far"),  hx("haze_near"),  326, 34, 580, True),
+        # 中远
+        (hx("haze_near"),  hx("haze_near"),  hx("haze_near"),  hx("haze_near"),  352, 30, 480, False),
+        # 中
+        (hx("night_mid"),  hx("dusk_mtn"),   hx("night_far"),  hx("haze_near"),  382, 36, 420, True),
+        # 近
+        (hx("night_near"), hx("dusk_sky"),   hx("night_mid"),  hx("haze_near"),  424, 40, 340, True),
     ]
-    for night_c, dusk_c, base, amp, wave in layers:
+
+    # 每层用不同的高频多段叠加，做出山的"肩线"
+    for night_c, dusk_c, night_hi, dusk_hi, base, amp, wave, rim in layers:
+        heights = []
         for x in range(ROOM_W):
-            color = dusk_c if x < TUTORIAL_END else night_c
-            # 多频正弦叠加，避免呆板的规则山脉
             h = (math.sin(x / wave * math.tau) * amp
                  + math.sin(x / (wave * 0.43) * math.tau + 1.7) * amp * 0.45
                  + math.sin(x / (wave * 0.21) * math.tau + 3.1) * amp * 0.22)
-            top = int(base + h)
+            heights.append(int(base + h))
+
+        for x in range(ROOM_W):
+            color = dusk_c if x < TUTORIAL_END else night_c
+            top = heights[x]
             for y in range(max(0, top), int(GROUND_Y)):
                 px[x, y] = color
+
+            # 山体内部的低频色块扰动（每 24px 一块，错开避免规则感）
+            if (x // 24 + (top // 18)) % 5 == 0:
+                if y_ok := top + 30 < GROUND_Y:
+                    for yy in range(top + 30, min(GROUND_Y, top + 70)):
+                        px[x, yy] = color
+
+            # 山脊高光：顶端 2px 用调色板内的更亮山色（不计算，避免越界）
+            if rim:
+                hi = dusk_hi if x < TUTORIAL_END else night_hi
+                for k in range(2):
+                    if 0 <= top + k < int(GROUND_Y):
+                        px[x, top + k] = hi
+
 
     # ── 月亮（右上，柔光晕）──
     moon_x, moon_y, moon_r = 470, 306, 22
@@ -222,25 +294,31 @@ def fill_rect(px, x0, y0, x1, y1, color):
 
 
 def make_terrain():
-    """地形层：石台。
+    """地形层：石台 + 地面。
 
-    立体感来自**顶面/立面两级明暗**：
-      · 顶面（受光）石亮 #7B8699
-      · 立面（背光）石中 #5A6478
-      · 底部阴影  石暗 #394051
-      · 外轮廓    夜色最暗 #12142A（不是纯黑）
+    ## 为什么要重做
 
-    再叠苔藓（顶面边缘）和石块纹理（立面随机砖缝）。
+    原来是"一块石色矩形 + 2px 顶面高光 + 几根砖缝"，截图出来就是
+    **一条灰色带**，完全没有质地。用户明确指出"地板很敷衍"。
+
+    ## 现在分四层画
+
+      1. **基岩**：整块石色，但从上到下分 3 个明度台阶（受光→立面→阴影），
+         不是一整块纯色。
+      2. **岩层线**：每 18~26px 一条水平层理线（地质分层），
+         左右错开半块，模拟沉积岩。
+      3. **草皮**：地面顶部 5~7px 是一条草，边缘参差不齐（不是直线），
+         下面挂 3~5px 的草根/垂须。
+      4. **细节**：碎石颗粒、苔藓斑、顶面受光边、底部渐暗。
+
+    所有颜色都从 28 色调色板取，抖动只用 BAYER。
     """
     img = Image.new("RGBA", (ROOM_W, ROOM_H), (0, 0, 0, 0))
     px = img.load()
     rng = random.Random(777)
 
-    # SOLIDS 的几何 —— **必须与 room_greybox.gd 的 SOLIDS 常量完全一致**。
-    # 早期这里只写了 4 块（凭印象），实际有 8 块，导致贴图上的石台
-    # 与碰撞体错位：玩家会踩空或撞到看不见的墙。
-    # **必须与 room_greybox.gd 的 SOLIDS 完全一致** —— 否则贴图上的石台
-    # 会和碰撞体错位，玩家会踩空或撞到看不见的墙。
+    # **必须与 room_greybox.gd 的 SOLIDS 完全一致** ——
+    # 否则贴图上的石台会和碰撞体错位，玩家会踩空或撞到看不见的墙。
     solids = [
         (0, 480, 2400, 60),      # 地面（整条）
         # ① 移动教学：三级台阶
@@ -260,67 +338,130 @@ def make_terrain():
         (0, 0, 2400, 12),
     ]
 
-    for i, (x, y, w, h) in enumerate(solids):
-        # 立面
-        fill_rect(px, x, y, x + w, y + h, hx("stone"))
-        # 顶面高光（2px）
-        fill_rect(px, x, y, x + w, y + 2, hx("stone_hi"))
-        # 底部阴影（渐变 3 行）
-        for k in range(3):
-            c = hx("stone_dk") if k == 2 else hx("stone")
-            fill_rect(px, x, y + h - 3 + k, x + w, y + h - 2 + k, c)
-        # 外轮廓：左侧和顶部
-        fill_rect(px, x, y, x + 1, y + h, hx("ink"))
-        fill_rect(px, x, y, x + w, y + 1, hx("ink"))
-        # 右侧轮廓
-        fill_rect(px, x + w - 1, y, x + w, y + h, hx("ink"))
-
-        # 立面砖缝纹理
-        if h > 10 and w > 40:
-            n_bricks = max(1, h // 22)
-            for b in range(n_bricks):
-                by = y + 6 + b * 22
-                if by >= y + h - 5:
-                    break
-                # 横向砖缝
-                for bx in range(x + 2, x + w - 2):
-                    if (bx + b * 7) % 23 < 18:
-                        if 0 <= by < ROOM_H:
-                            px[bx, by] = hx("stone_dk")
-                # 竖向砖缝，错缝排列
-                offset = 11 if b % 2 == 0 else 0
-                for bx in range(x + 8 + offset, x + w - 4, 22):
-                    for k in range(4):
-                        if by + k < y + h - 4 and 0 <= by + k < ROOM_H:
-                            px[bx + k - k, by + k] = hx("stone_dk")
-
-    # ── 苔藓：覆在每块石台顶部边缘 ──
-    # 天花板（y=0）不长苔藓，它的"顶面"在屏幕外，长了会显得奇怪
     for (x, y, w, h) in solids:
-        if y <= 0:
-            continue
-        for bx in range(x + 1, x + w - 1):
-            # 苔藓高度随机 1~3px，形成不规则边缘
-            mh = 1 + (1 if (bx * 7919) % 3 == 0 else 0) + (1 if (bx * 104729) % 7 == 0 else 0)
-            for k in range(mh):
-                yy = y - 1 - k
-                if 0 <= yy < ROOM_H:
-                    px[bx, yy] = hx("moss_hi") if k == mh - 1 else hx("moss")
-        # 苔藓垂下的几缕
-        for _ in range(w // 40):
-            bx = x + rng.randint(4, max(5, w - 6))
-            drips = rng.randint(1, 4)
-            for k in range(drips):
-                yy = y + 2 + k
-                if 0 <= yy < ROOM_H:
-                    px[bx, yy] = hx("moss")
-                    if 0 <= bx + 1 < ROOM_W:
-                        px[bx + 1, yy] = hx("moss_dk")
+        _draw_solid(px, rng, x, y, w, h)
 
     return img
 
 
-# ─────────────────────── 近景：装饰 ───────────────────────
+def _draw_solid(px, rng, x, y, w, h):
+    """画一块地形：岩层 + 明暗台阶 + 草皮 + 细节。"""
+
+    # 草皮参数（实际绘制在函数末尾，这里只声明）
+    # 判断"顶部是否露天"：地面和台阶算露天，天花板/墙不算
+    is_surface = 20 < y < GROUND_Y + 40
+    grass_h = rng.randint(4, 7)
+
+    # ── 1. 基岩：**四段**明暗 ──
+    #
+    # 地面很厚（60px），只做"上亮下暗"两段会让下半个屏幕变成一大块死黑
+    # （实测截图里地板下半几乎看不出任何东西）。改成四段，
+    # 并在中段保留主色，避免过早变暗。
+    top_zone = max(2, int(h * 0.30))
+    bot_zone = max(2, int(h * 0.28))
+
+    for yy in range(y, y + h):
+        rel = (yy - y) / max(1, h)
+        if rel < 0.10:
+            col = hx("stone_hi")
+        elif rel < 0.62:
+            col = hx("stone")
+        elif rel < 0.86:
+            col = hx("stone_dk")
+        else:
+            col = hx("ink")
+        for xx in range(x, x + w):
+            px[xx, yy] = col
+
+    # ── 2. 岩层线：水平层理，错开半块 ──
+    layer_y = y + top_zone + rng.randint(0, 6)
+    while layer_y < y + h - 4:
+        off = rng.randint(0, 14)
+        # 层理：**2px 暗线 + 1px 亮线**。对比要够 —— 第一版只画 1px、
+        # 概率 0.82，在 480px 宽的地面上几乎看不见，截图里地板是一块纯灰。
+        for xx in range(x + off, x + w):
+            if xx < 0 or xx >= ROOM_W:
+                continue
+            if rng.random() < 0.90:
+                px[xx, layer_y] = hx("stone_dk")
+                if layer_y + 1 < y + h:
+                    px[xx, layer_y + 1] = hx("stone_dk")
+            # 层理下方 1px 高光：让每层看起来有厚度、上面受光
+            if rng.random() < 0.55 and layer_y + 2 < y + h:
+                px[xx, layer_y + 2] = hx("stone_hi")
+        layer_y += rng.randint(12, 22)
+
+
+    # ── 4. 顶面受光边（非草皮的地块，比如天花板/墙）──
+    for xx in range(x, x + w):
+        if 0 <= xx < ROOM_W and 0 <= y < ROOM_H:
+            px[xx, y] = hx("stone_hi")
+
+    # ── 5. 外轮廓描边（不是纯黑，用墨色）──
+    for xx in range(x, x + w):
+        for yy in (y - 1, y + h):
+            if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                px[xx, yy] = hx("ink")
+    for yy in range(y, y + h):
+        for xx in (x - 1, x + w):
+            if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                px[xx, yy] = hx("ink")
+
+    # ── 6. 碎石与苔藓斑 ──
+    n_pebbles = max(1, (w * h) // 900)
+    for _ in range(n_pebbles):
+        rx = x + rng.randint(2, max(3, w - 3))
+        ry = y + rng.randint(top_zone, max(top_zone + 1, h - 3))
+        if not (0 <= rx < ROOM_W and 0 <= ry < ROOM_H):
+            continue
+        rw = rng.randint(1, 3)
+        for k in range(rw):
+            if rx + k < min(ROOM_W, x + w) and ry < y + h:
+                px[rx + k, ry] = hx("stone_hi")
+            if rx + k < min(ROOM_W, x + w) and ry + 1 < y + h:
+                px[rx + k, ry + 1] = hx("stone_dk")
+
+    n_moss = max(1, w // 90)
+    for _ in range(n_moss):
+        mx = x + rng.randint(0, max(1, w - 1))
+        my = y + rng.randint(grass_h + 2 if is_surface else 2, max(4, h - 3))
+        for k in range(rng.randint(2, 5)):
+            if 0 <= mx < ROOM_W and 0 <= my < ROOM_H and my < y + h:
+                if rng.random() < 0.7:
+                    px[mx, my] = hx("moss_dk")
+            mx += rng.choice([-1, 0, 1])
+
+    # ── 7. 草皮：**最后画** ──
+    #
+    # 必须放在所有岩体/描边/碎石之后。第一版放在描边之前，
+    # 结果草皮被描边和相邻地块覆盖，地面上只剩 1px 草边
+    # （实测 y=480 之后立刻变成纯石头色）。
+    if is_surface:
+        for xx in range(x, x + w):
+            if xx < 0 or xx >= ROOM_W:
+                continue
+            # 多频噪声让草皮边缘参差，不是直线
+            n = (math.sin(xx * 0.31) * 1.4 + math.sin(xx * 0.87 + 1.3) * 0.9
+                 + rng.random() * 1.2)
+            gh = max(3, grass_h + int(n))
+            for k in range(gh):
+                yy = y + k
+                if yy < 0 or yy >= ROOM_H:
+                    continue
+                if k == 0:
+                    px[xx, yy] = hx("moss_hi")
+                elif k < gh - 2:
+                    px[xx, yy] = hx("grass")
+                else:
+                    px[xx, yy] = hx("moss")
+            # 垂下的草须
+            if rng.random() < 0.12:
+                ln = rng.randint(2, 5)
+                for k in range(ln):
+                    yy = y + gh + k
+                    if 0 <= yy < ROOM_H:
+                        px[xx, yy] = hx("moss_dk")
+
 
 def make_deco():
     """装饰层：草丛、紫藤、灯笼。z 高于地形、低于角色。"""

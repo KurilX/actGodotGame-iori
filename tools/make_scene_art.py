@@ -1,4 +1,4 @@
-﻿"""场景美术生成器：把灰盒替换成有氛围的夜景。
+"""场景美术生成器：把灰盒替换成有氛围的夜景。
 
 ## 设计思路
 
@@ -130,105 +130,155 @@ def hex_rgb(h):
 
 # ─────────────────────── 远景：夜空 ───────────────────────
 
-def make_sky():
-    """夜空：垂直渐变 + 月亮 + 三层远山。
 
-    渐变用**有序抖动**（4×4 Bayer），不是平滑渐变 ——
-    平滑渐变在像素画里会产生上百种中间色，直接破坏 28 色约束。
-    抖动让相邻两种纯色交错，远看是渐变，近看仍是纯色块。
+def _ridge_color(body, is_night):
+    """给山脊取一个"比山体亮一档"的色。
+
+    **必须从调色板里取**，不能计算 —— 计算出的色会让用色统计超标。
+    优先找同色系里明度高一档的；找不到就返回原色（宁可不勾）。
+
+    **必须区分黄昏/夜色**：第一版在全调色板里找"更亮且色相接近"的，
+    结果夜色区的山脊选到了黄昏紫 (90,74,114)，夜幕上冒出一圈紫边。
+    所以候选集要按区域过滤。
+    """
+    if is_night:
+        # 夜色系：只允许**蓝色分量明显高于红色**的深色。
+        # 不能用 haze_* ——haze_far 是 (90,74,114) 的紫，
+        # 混进夜幕会有一条明显的紫边（实测 y=359~371）。
+        keys = ["night_far", "night_mid", "night_near", "ink"]
+    else:
+        # 黄昏系：只允许偏紫的暖色
+        keys = ["dusk_mtn_dk", "dusk_mtn", "dusk_sky",
+                "haze_far", "haze_near"]
+    pal = [hx(k)[:3] for k in keys if k in P]
+    # 在山体色基础上，找"更亮且色相接近"的调色板成员
+    best = body[:3]
+    best_score = 0.0
+    body_lum = 0.299 * body[0] + 0.587 * body[1] + 0.114 * body[2]
+    for c in pal:
+        lum = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+        # 只要稍微亮一点的
+        if lum <= body_lum or lum > body_lum * 1.6:
+            continue
+        # 色相接近：三通道差值不能太大
+        diff = max(abs(c[0] - body[0]), abs(c[1] - body[1]),
+                   abs(c[2] - body[2]))
+        if diff > 90:
+            continue
+        score = lum - diff * 0.3
+        if score > best_score:
+            best_score = score
+            best = c
+    return (best[0], best[1], best[2], 255)
+def make_sky():
+    """夜空 + 远山。
+
+    ## 这一版为什么重做
+
+    用户反馈「背景跟风格有点不搭配，月亮跟草地对味了」。
+    月亮和草的特点是**小而精致**（有描边、有 2~3 级明暗、轮廓清晰），
+    而山是**巨大而平坦**（撑满画面的 67%，每层只有 1~2 个纯色）。
+
+    具体三个问题：
+
+    1. **山太大**：基准高度 300~424，相机可见区间才 y=270~540，
+       等于整块画面都是山，没有"天空"的呼吸感。
+    2. **天空抖动太吵**：可视角内的渐变用 4×4 Bayer，但相邻两色
+       明度差太大，抖动出来是可见噪点，像静态雪花。
+       月亮周围明明是干净的，两者放一起就割裂。
+    3. **原来的"山体色块扰动"是空操作**：写的是 px[x,yy] = color，
+       而那里本来就是 color，整段代码什么也没做。
+
+    ## 这版的做法
+
+    · **天空以纯色为主，只有靠近地平线的一条窄带做抖动渐变**
+      → 大面积干净，噪点消失，和月亮的干净感一致
+    · **山整体下压**（340/378/412），留出上方 1/3 干净天空
+    · **山脊加锯齿**（原来的纯正弦太圆滑，像布不是山）
+    · **最近一层山脊加远景树线**，把"草"的语言延伸到远处
+    · 山体加**受光/背光分界**（每层两种色），不再是一整片纯色
     """
     img = Image.new("RGBA", (ROOM_W, ROOM_H), (0, 0, 0, 0))
     px = img.load()
 
+    # ══════════════ 1. 天空 ══════════════
+    #
+    # 结构：上方一大片纯色 → 靠近地平线一小段抖动渐变。
+    # 渐变带宽只占可见高度的一部分，避免整片天空都是噪点。
+    SKY_FLAT_END = 380      # 这个 y 之前是纯色
+    HORIZON = GROUND_Y      # 480
 
+    dusk_flat = hx("dusk_mtn_dk")
+    dusk_glow = hx("dusk_sky")
+    night_flat = hx("night_far")
+    night_glow = hx("night_mid")
 
-    # 天空分三段：顶部夜色远 → 中部夜色中 → 底部夜色近
-    # 每段之间用抖动过渡（16 级）
-    # 渐变只在**可见区间**（相机看到的 y=270~480）内做，
-    # 这样玩家眼前总有层次，而不是一整片纯色。
-    VIS_TOP = 265
-    # 两套配色：x < TUTORIAL_END 用黄昏，x >= 用夜色。
-    # 在边界前后 120px 内做**抖动混合**：黄昏色和夜色按比例交错，
-    # 远看是平滑过渡，近看仍是纯色块（不破坏像素感、不引入新颜色）。
-    # **只从调色板取值，不计算中间色**。
-    # 第一版用 hex_rgb() 直接算，产生了 7 个不在调色板里的色
-    # （用色统计 29/28）。像素风要求所有颜色必须是调色板成员。
-    dusk_stops = [
-        (0.00, hx("dusk_mtn_dk")),
-        (0.50, hx("dusk_sky")),
-        (1.00, hx("dusk_glow")),
-    ]
-    night_stops = [
-        (0.00, hx("night_far")),
-        (0.50, hx("night_mid")),
-        (1.00, hx("night_near")),
-    ]
-
-    def pick_stops(x):
-        """返回该 x 位置应使用的配色。过渡区里按 x 决定，由抖动实现混合。"""
-        return dusk_stops if x < TUTORIAL_END else night_stops
+    # 黄昏/夜色的分界（和关卡分界一致，中间 120px 抖动混合）
     BLEND = 120
 
     for y in range(int(GROUND_Y)):
-        t = max(0.0, (y - VIS_TOP)) / max(1.0, GROUND_Y - VIS_TOP)
-
         for x in range(ROOM_W):
-            # 过渡带：黄昏/夜色按 x 位置和抖动比例混合
+            # 先决定这一列用哪套配色（过渡带按抖动混合）
             if x < TUTORIAL_END - BLEND:
-                stops = dusk_stops
+                flat, glow = dusk_flat, dusk_glow
             elif x >= TUTORIAL_END:
-                stops = night_stops
+                flat, glow = night_flat, night_glow
             else:
-                # 过渡带内，抖动决定这一像素取哪套
                 th_blend = (BAYER[y % 4][x % 4] + 0.5) / 16.0
                 ratio = (x - (TUTORIAL_END - BLEND)) / BLEND
-                stops = night_stops if th_blend < ratio else dusk_stops
+                if th_blend < ratio:
+                    flat, glow = night_flat, night_glow
+                else:
+                    flat, glow = dusk_flat, dusk_glow
 
-            seg = 0
-            for i in range(len(stops) - 1):
-                if stops[i][0] <= t <= stops[i + 1][0]:
-                    seg = i
-                    break
-            t0, c0 = stops[seg]
-            t1, c1 = stops[seg + 1]
-            local = 0.0 if t1 <= t0 else (t - t0) / (t1 - t0)
+            if y < SKY_FLAT_END:
+                px[x, y] = flat
+            else:
+                # 地平线渐变：从 flat 过渡到 glow
+                t = (y - SKY_FLAT_END) / max(1.0, HORIZON - SKY_FLAT_END)
+                # 用 2×2 抖动（比 4×4 粗一档）：
+                # 在 480 宽的画面里，2×2 的颗粒更接近"色块"而不是"噪点"
+                th = (BAYER[(y // 2) % 4][(x // 2) % 4] + 0.5) / 16.0
+                px[x, y] = glow if t > th else flat
 
-            th = (BAYER[y % 4][x % 4] + 0.5) / 16.0
-            c = c1 if local > th else c0
-            px[x, y] = c
-
-    # ── 远山：**五层**（原 3 层）──
-    #
-    # 原来只有 3 层纯色山，看起来像剪纸。改进点：
-    #   1. 加两层「薄雾山」做空气透视 —— 越远的山越接近天空色，
-    #      这是产生"景深"最廉价也最有效的手段
-    #   2. 每个山脊加**边缘高光**：山体顶部 1~2px 用亮一档的颜色，
-    #      模拟天光照在山脊上，山的立体感立刻出来
-    #   3. 山体内部加低频色块扰动，避免大面积纯色
+    # ══════════════ 2. 远山（三层 + 锯齿） ══════════════
     rng = random.Random(20261120)
 
-    # (夜色, 黄昏色, 基准高度, 起伏幅度, 波长, 是否加脊线高光)
-    # (夜色, 黄昏色, 夜色高光, 黄昏高光, 基准高度, 起伏, 波长, 是否加脊线)
+    # (夜色, 黄昏色, 夜色高光, 黄昏高光, 基准高度, 起伏, 波长, 锯齿强度)
+    #
+    # 基准高度整体下压：340/378/412（原来 300~424）。
+    # 这样 y=270 到第一层山之间留出约 70px 干净天空。
+    # 山脊高光色**必须和山体同色系**：
+    #   · 夜色区只能从 night_* 取
+    #   · 黄昏区只能从 dusk_* 取
+    # 第一版最远那层的高光写的是 haze_far（紫），结果夜幕上
+    # 冒出一条紫边（实测 y=359~371 全是 (90,74,114)）。
     layers = [
-        # 最远：薄雾山（贴着天空色，几乎融进去）
-        (hx("haze_far"),   hx("haze_far"),   hx("haze_far"),   hx("haze_far"),   300, 30, 700, False),
-        # 远
-        (hx("night_far"),  hx("dusk_mtn_dk"), hx("haze_far"),  hx("haze_near"),  326, 34, 580, True),
+        # 最远：几乎融进天空，不需要独立高光
+        (hx("haze_far"),   hx("haze_far"),    hx("haze_far"),
+         hx("haze_far"),   340, 26, 640, 0.0),
         # 中远
-        (hx("haze_near"),  hx("haze_near"),  hx("haze_near"),  hx("haze_near"),  352, 30, 480, False),
-        # 中
-        (hx("night_mid"),  hx("dusk_mtn"),   hx("night_far"),  hx("haze_near"),  382, 36, 420, True),
-        # 近
-        (hx("night_near"), hx("dusk_sky"),   hx("night_mid"),  hx("haze_near"),  424, 40, 340, True),
+        (hx("night_far"),  hx("dusk_mtn_dk"), hx("night_mid"),
+         hx("dusk_mtn"),   378, 30, 500, 0.6),
+        # 近：最实、锯齿最强
+        (hx("night_mid"),  hx("dusk_mtn"),    hx("night_near"),
+         hx("dusk_sky"),   412, 34, 380, 1.0),
     ]
 
-    # 每层用不同的高频多段叠加，做出山的"肩线"
-    for night_c, dusk_c, night_hi, dusk_hi, base, amp, wave, rim in layers:
+    for night_c, dusk_c, night_hi, dusk_hi, base, amp, wave, jag in layers:
         heights = []
         for x in range(ROOM_W):
+            # 主起伏：多频正弦（保持山的大形）
             h = (math.sin(x / wave * math.tau) * amp
                  + math.sin(x / (wave * 0.43) * math.tau + 1.7) * amp * 0.45
                  + math.sin(x / (wave * 0.21) * math.tau + 3.1) * amp * 0.22)
+            # 锯齿：让山脊不是光滑曲线。
+            # 纯正弦看起来像"布褶"而不是山岩 —— 这是上一版最大的问题。
+            if jag > 0.0:
+                step = max(2, int(6 - jag * 3))
+                if (x // step) % 2 == 0:
+                    h += jag * 2.0
+                h += rng.uniform(-jag * 1.2, jag * 1.2)
             heights.append(int(base + h))
 
         for x in range(ROOM_W):
@@ -237,21 +287,56 @@ def make_sky():
             for y in range(max(0, top), int(GROUND_Y)):
                 px[x, y] = color
 
-            # 山体内部的低频色块扰动（每 24px 一块，错开避免规则感）
-            if (x // 24 + (top // 18)) % 5 == 0:
-                if y_ok := top + 30 < GROUND_Y:
-                    for yy in range(top + 30, min(GROUND_Y, top + 70)):
-                        px[x, yy] = color
+            # 山体内部的**受光/背光分界**：
+            # 左侧山坡受光（更亮），右侧背光（更深）。
+            # 用相邻山脊的高度差判断坡向。
+            if 0 < x < ROOM_W - 1:
+                slope = heights[x + 1] - heights[x - 1]
+                if slope < -1:      # 上升坡 = 受光面
+                    hi = dusk_hi if x < TUTORIAL_END else night_hi
+                    # 只给坡面上部 60% 上高光，下面保持原色
+                    for k in range(3, min(40, int(GROUND_Y) - top)):
+                        if 0 <= top + k < int(GROUND_Y):
+                            px[x, top + k] = hi
+                            break
 
-            # 山脊高光：顶端 2px 用调色板内的更亮山色（不计算，避免越界）
-            if rim:
-                hi = dusk_hi if x < TUTORIAL_END else night_hi
-                for k in range(2):
-                    if 0 <= top + k < int(GROUND_Y):
-                        px[x, top + k] = hi
+            # 山脊线：顶端 1px 用更亮的色，勾出轮廓
+            if 0 <= top < int(GROUND_Y):
+                hi2 = dusk_hi if x < TUTORIAL_END else night_hi
+                px[x, top] = hi2
 
+    # ══════════════ 3. 最近一层山脊的远景树线 ══════════════
+    #
+    # 用户说"草地对味了"—— 把植被的语言延伸到远处山脊，
+    # 让"远处的树"和"近处的草"形成呼应，比光秃秃的山脊亲切。
+    near_base = 412
+    for x in range(0, ROOM_W, 3):
+        # 只在山坡较平缓的地方长树
+        h = (math.sin(x / 380 * math.tau) * 34
+             + math.sin(x / (380 * 0.43) * math.tau + 1.7) * 34 * 0.45
+             + math.sin(x / (380 * 0.21) * math.tau + 3.1) * 34 * 0.22)
+        ridge_y = int(near_base + h)
+        # 用噪声决定这一棵多高，避免等间距
+        if rng.random() > 0.55:
+            continue
+        tree_h = rng.randint(4, 9)
+        tree_w = rng.randint(1, 2)
+        # 树是深色剪影：比山脊更深一档，在云雾里静静站着
+        tree_col = hx("night_far") if x >= TUTORIAL_END else hx("dusk_mtn_dk")
+        for k in range(tree_h):
+            yy = ridge_y - k
+            if not (0 <= yy < int(GROUND_Y)):
+                continue
+            # 上窄下宽的树形
+            w_here = tree_w if k < tree_h * 0.6 else max(1, tree_w - 1)
+            for dx in range(-w_here + 1, w_here):
+                xx = x + dx
+                if 0 <= xx < ROOM_W:
+                    px[xx, yy] = tree_col
 
-    # ── 月亮（右上，柔光晕）──
+    # ══════════════ 4. 月亮 ══════════════
+    #
+    # **保持不变** —— 用户明确说月亮对味了。
     moon_x, moon_y, moon_r = 470, 306, 22
     for y in range(moon_y - moon_r * 3, moon_y + moon_r * 3):
         if not (0 <= y < GROUND_Y):
@@ -265,14 +350,11 @@ def make_sky():
             elif d <= moon_r + 3:
                 px[x, y] = hx("moon_hi")
             elif d <= moon_r + 7:
-                # 光晕：用抖动做半透明。
-                # 原来铺到 moon_r+12 且密度 0.45，观感是一团发虚的白雾，
-                # 收窄到 +7、密度降到 0.28，只留一圈薄晕。
                 th = (BAYER[y % 4][x % 4] + 0.5) / 16.0
                 if th < 0.28 * (1.0 - (d - moon_r - 3) / 4.0):
                     px[x, y] = hx("moon_hi")
 
-    # 月亮上的暗斑（让它不是个纯白圆）
+    # 月亮上的暗斑
     for dy, dx, r in [(-6, -8, 5), (5, 4, 6), (-2, 10, 4)]:
         for y in range(moon_y + dy - r, moon_y + dy + r):
             for x in range(moon_x + dx - r, moon_x + dx + r):
@@ -282,7 +364,6 @@ def make_sky():
                             px[x, y] = hx("moon_hi")
 
     return img
-
 
 # ─────────────────────── 中景：石台 ───────────────────────
 

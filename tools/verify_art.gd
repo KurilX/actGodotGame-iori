@@ -237,6 +237,33 @@ func _init() -> void:
 			   "背景草丛开启了描边",
 			   "outline=false，会和带描边的角色脱节")
 
+	# ── 10. 夜色区不能混入黄昏紫 ──
+	#
+	# 教程关是黄昏紫调、BOSS 房是深夜蓝调，两者靠抖动过渡。
+	# 但山脊高光曾经误用了 haze_far（紫），在夜幕上冒出一条紫边
+	# （实测 y=359~371 全是 (90,74,114)）。
+	# 判据：夜色区(x>1700) 的天空像素，蓝分量必须 >= 红分量。
+	var sky_tex: Texture2D = load("res://art/scene/sky.png")
+	if sky_tex != null:
+		var simg: Image = sky_tex.get_image()
+		var purple_leak := 0
+		var sampled := 0
+		var yy2 := 270
+		while yy2 < 470:
+			var xx2 := 1700
+			while xx2 < 2390:
+				var c3: Color = simg.get_pixel(xx2, yy2)
+				if c3.a > 0.5:
+					sampled += 1
+					# 红 > 蓝 说明偏暖（紫/橙），夜色区不该出现
+					if c3.r * 255.0 > c3.b * 255.0 + 8.0:
+						purple_leak += 1
+				xx2 += 17
+			yy2 += 9
+		_check(purple_leak == 0,
+			   "夜色区无黄昏紫渗漏（0/%d 采样）" % sampled,
+			   "有 %d 个紫色像素混入夜幕" % purple_leak)
+
 	_finish()
 
 

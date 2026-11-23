@@ -122,6 +122,32 @@ func _init() -> void:
 	_check(ok and got_perfect[0], "9. 完美闪避判定与信号",
 	       "返回 %s，信号 %s" % [ok, got_perfect[0]])
 
+	# ── 攻击必须能打到敌人（不只是木桩）──
+	#
+	# **这条是为一个真实 bug 补的**：玩家 hitbox 的 collision_mask
+	# 原来只写了 1<<3（训练木桩所在层），漏了 1<<2（敌人本体）。
+	# 结果是"打木桩有反应、打敌人完全穿过去"，
+	# 而当时的测试只验证了木桩，所以测试全绿也没发现。
+	var hb_mask: int = player.get("_hitbox").collision_mask
+	_check((hb_mask & (1 << 2)) != 0,
+		   "hitbox mask 包含敌人层(1<<2)",
+		   "mask=%d 不含 1<<2，打不到任何敌人" % hb_mask)
+	_check((hb_mask & (1 << 3)) != 0,
+		   "hitbox mask 包含木桩层(1<<3)",
+		   "mask=%d 不含 1<<3，打不到训练木桩" % hb_mask)
+
+	# 敌人受伤链路（take_hit 能扣血）
+	var hit_ok := false
+	for e in get_nodes_in_group("enemy"):
+		if e.get("max_hp") == 120:
+			continue
+		var ehp: int = int(e.get("hp"))
+		e.take_hit(1, player.global_position.x)
+		if int(e.get("hp")) < ehp:
+			hit_ok = true
+			break
+	_check(hit_ok, "敌人受伤链路正常（take_hit 扣血）", "take_hit 没生效")
+
 	print("")
 	if _failures.is_empty():
 		print("PASS: 全部 %d 项通过" % _checks)

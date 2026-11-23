@@ -22,7 +22,12 @@ func _ready() -> void:
 	monitoring = false
 	monitorable = false
 	collision_layer = 0
-	collision_mask = 1 << 3        # 只检测第 4 层（敌人/木桩）
+	# **必须同时包含敌人本体和木桩**：
+	#   敌人 CharacterBody2D → 1<<2（第3层）
+	#   训练木桩 Area2D     → 1<<3（第4层）
+	# 原来只写了 1<<3，结果玩家**只打得到木桩，打不到任何敌人**
+	# （血条不掉、无受击反馈，看起来像"攻击穿过去了"）。
+	collision_mask = (1 << 2) | (1 << 3)
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
 

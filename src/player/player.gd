@@ -30,6 +30,9 @@ const TURN_BOOST := 2.2           # 反向输入时的减速倍率（急转向�
 # ── 轻攻击四连连段树（v0.5） ──
 # 每段：总时长 / 判定开启区间 / 伤害 / 前冲 / 判定框尺寸(w,h,offset_x,offset_y)
 # offset 以角色脚底为原点，y 向上为负
+# **hit_on 从 0.06 缩到 0.02**：弹反要靠"在弹幕到达前一刻挥剑"，
+# 起手 0.06 秒（120Hz 下 7 帧）太晚 —— 实测弹幕 2 帧就能撞上玩家，
+# 判定框还没开就已经吃伤害了，弹反根本来不及。改成 0.02（2.4 帧）。
 const COMBO := [
 	{"dur": 0.24, "hit_on": 0.06, "hit_off": 0.16, "dmg": 1, "lunge": 10.0,
 	 "box": Vector4(22, 18, 14, -26)},
@@ -130,8 +133,11 @@ var _chain_time := 0.0                  # 链的单调时钟（秒）
 
 # 获得道具动画：独立的计时器，不占用 State
 const GAIN_ANIM_DUR := 0.72
+# 弹反窗口：攻击起手后的这段时间内，判定框对弹幕生效（早于伤害窗口）
+const PARRY_WINDOW := 0.10
 const ComboChain := preload("res://src/player/combo_chain.gd")
 var _gain_anim_timer := 0.0
+var _parry_window := 0.0
 
 
 
@@ -146,6 +152,8 @@ var _dash_invuln := 0.0
 # 全局时间缩放（子弹时间由 main 控制，这里只发信号）
 signal perfect_dodge
 signal hit_landed(target: Node, damage: int)
+# 弹反成功：UI 据此播特效/给连击加成
+signal parried(projectile: Node)
 # 玩家受伤：连击条据此清零
 signal damaged(amount: int)
 # 空挥：一段攻击打完但没有命中任何目标
@@ -192,6 +200,9 @@ func _ready() -> void:
 	# 加入 player 组：敌人靠这个组找到玩家
 	add_to_group("player")
 	_hitbox.hit_landed.connect(_on_hit_landed)
+	# 弹反信号转发到玩家层，供 UI 与连击条使用
+	_hitbox.parried.connect(func(proj: Node) -> void:
+		parried.emit(proj))
 
 	# 初始化连段链：把各链的上限与接段窗口注入
 	_chain = ComboChain.new()
@@ -324,11 +335,20 @@ func _update_attack(delta: float) -> void:
 	# 攻击期间保留惯性，逐渐减速
 	velocity.x = move_toward(velocity.x, 0.0, DECEL_AIR * delta)
 
-	# 判定框开关：只在 hit_on..hit_off 区间开启
+	# 判定框开关。
+	#
+	# 有两个窗口：
+	#   · 弹反窗口 _parry_window：起手就开，专用于打回弹幕
+	#   · 伤害窗口 hit_on..hit_off：正常命中敌人
+	# 取并集，任一有效就开判定框。
 	var t := _get_attack_timer()
 	var should_hit: bool = t >= float(seg["hit_on"]) and t <= float(seg["hit_off"])
-	if should_hit != _hitbox.active:
-		_hitbox.set_active(should_hit)
+	var in_parry: bool = _parry_window > 0.0
+	if should_hit or in_parry:
+		if not _hitbox.active:
+			_hitbox.set_active(true)
+	elif _hitbox.active:
+		_hitbox.set_active(false)
 
 	# 段内结束
 	if t >= float(seg["dur"]):
@@ -457,6 +477,15 @@ func _begin_swing() -> void:
 	var mul := 4.0 if is_heavy_attack else 6.0
 	velocity.x = facing * float(seg["lunge"]) * mul
 
+	# ── 弹反窗口 ──
+	# 攻击起手瞬间就开启判定框，持续 PARry_WINDOW 秒，之后再交给
+	# 正常的 hit_on/hit_off 窗口。
+	#
+	# **为什么需要单独的弹反窗口**：实测弹幕从进入身体范围到消失只要
+	# 2 帧，而正常攻击判定要 0.06s（7 帧）后才开 —— 弹反根本来不及。
+	# 动作游戏里"格挡/弹反"本来就应该比"出伤害"更早生效。
+	_parry_window = PARRY_WINDOW
+
 	_play_attack_anim()
 	_fire_slash_fx()
 
@@ -568,6 +597,23 @@ func from_save_dict(d: Dictionary) -> void:
 	velocity = Vector2.ZERO
 	# 位置由调用方设置（它可能还要处理相机跟随）
 	queue_redraw()
+
+
+func try_parry_incoming(proj: Node) -> bool:
+	"""弹幕击中玩家前的最后一刻询问：现在能不能弹反？
+
+	返回 true 表示已弹反（弹幕应继续飞行，不结算伤害）。
+
+	**为什么由弹幕来问**：见 projectile.gd 里 _handle_hit 的注释 ——
+	Area2D 之间的信号顺序不可靠，弹幕往往先撞到玩家就自毁了。
+	把判断权放在弹幕结算前，才能保证弹反一定有机会触发。
+	"""
+	if _parry_window <= 0.0:
+		return false
+	var hb = _hitbox
+	if hb == null or not hb.has_method("_try_parry"):
+		return false
+	return bool(hb._try_parry(proj))
 
 
 func get_chain():
@@ -725,6 +771,8 @@ func _tick_timers(delta: float) -> void:
 			if _gain_anim_timer <= 0.0:
 				# 结束后恢复常规范式
 				_anim.play("idle")
+
+	_parry_window = maxf(_parry_window - delta, 0.0)
 
 	_coyote = maxf(_coyote - delta, 0.0)
 	_jump_buffer = maxf(_jump_buffer - delta, 0.0)

@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 新手教程关验证：关卡结构、怪物分布、教学提示、BOSS 房锁
 ##
 ## 运行：godot --headless --path . --script tools/verify_tutorial.gd -- --autoplay
@@ -44,17 +44,20 @@ func _init() -> void:
 			minions.append(e)
 	_check(minions.size() == 6, "5. 共 6 只杂兵", "实际 %d" % minions.size())
 
-	# 按 x 分区间统计
-	var counts := {"move": 0, "light": 0, "heavy": 0, "dash": 0, "mix": 0}
+	# 按 x 分区间统计（区间与 tutorial_hints.gd 的 SEGMENTS 一一对应）
+	var counts := {"move": 0, "light": 0, "heavy": 0, "parry": 0,
+				   "dash": 0, "mix": 0}
 	for m in minions:
 		var x: float = m.global_position.x
-		if x < 480:
+		if x < 400:
 			counts["move"] += 1
-		elif x < 880:
+		elif x < 760:
 			counts["light"] += 1
-		elif x < 1180:
+		elif x < 1080:
 			counts["heavy"] += 1
-		elif x < 1400:
+		elif x < 1320:
+			counts["parry"] += 1
+		elif x < 1440:
 			counts["dash"] += 1
 		else:
 			counts["mix"] += 1
@@ -66,30 +69,48 @@ func _init() -> void:
 	       "实际 %d 只" % counts["light"])
 	_check(counts["heavy"] == 1, "8. ③ 重攻击段 1 只（石守，教破霸体）",
 	       "实际 %d 只" % counts["heavy"])
-	_check(counts["dash"] == 2, "9. ④ 闪避段 2 只（两侧夹击）",
+	# **弹反段必须有敌人**：弹反是常驻技能，必须先有东西可弹
+	_check(counts["parry"] >= 1, "9. ④ 弹反段有敌人（提供可弹反的弹幕）",
+	       "实际 %d 只 —— 没敌人就没东西可弹" % counts["parry"])
+	_check(counts["dash"] == 1, "10. ⑤ 闪避段 1 只",
 	       "实际 %d 只" % counts["dash"])
-	_check(counts["mix"] == 2, "10. ⑤ 综合段 2 只（三种威胁同场）",
+	_check(counts["mix"] == 2, "11. ⑥ 综合段 2 只（空中+地面）",
 	       "实际 %d 只" % counts["mix"])
 
 	# 重攻击段必须是石守（有霸体，能教出轻/重区别）
 	var heavy_kind := ""
 	for m in minions:
 		var x: float = m.global_position.x
-		if x >= 880 and x < 1180:
+		if x >= 760 and x < 1080:
 			heavy_kind = str(m.name).to_lower()
 	_check(heavy_kind.contains("stonepaw"),
-	       "11. 重攻击段放的是石守（唯一能教出轻/重区别的敌人）",
+	       "11b. 重攻击段放的是石守（唯一能教出轻/重区别的敌人）",
 	       "实际是 %s" % heavy_kind)
+
+	# **弹反段的敌人必须会用远程** —— 否则弹反教不了
+	var parry_enemy_has_ranged := false
+	for m in minions:
+		var x2: float = m.global_position.x
+		if x2 >= 1080 and x2 < 1320:
+			if m.get("ranged_enabled"):
+				parry_enemy_has_ranged = true
+	_check(parry_enemy_has_ranged,
+	       "11c. 弹反段的敌人会发弹幕（否则教不了弹反）",
+	       "那只敌人 ranged_enabled=false")
+
 
 	# ── 教学提示 ──
 	if hints != null:
-		_check(hints.SEGMENTS.size() == 5, "12. 有 5 段教学提示",
+		_check(hints.SEGMENTS.size() == 6, "12. 有 6 段教学提示",
 		       "实际 %d" % hints.SEGMENTS.size())
 		var ids := []
 		for s in hints.SEGMENTS:
 			ids.append(s["id"])
-		_check(ids == ["move", "light", "heavy", "dash", "mix"],
+		_check(ids == ["move", "light", "heavy", "parry", "dash", "mix"],
 		       "13. 教学段顺序正确", str(ids))
+		# 弹反段必须存在（弹反常驻化的关键）
+		_check(ids.has("parry"), "13b. 有弹反教学段（弹反是常驻技能）",
+		       "缺少 parry 段")
 		# 每段都要有按键提示和非空目标
 		var all_have_keys := true
 		for s in hints.SEGMENTS:

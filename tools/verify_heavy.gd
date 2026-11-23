@@ -27,30 +27,49 @@ func _init() -> void:
 	for i in 20:
 		await physics_frame
 
+	# **必须隔离敌人**：本测试只测玩家自己的重攻击连段。
+	# 关卡扩成教程关后，木桩附近有苔团（会吐毒弹）和石守，
+	# 它们会在连段中途打伤玩家、打断攻击 —— 实测导致 index=2 那段
+	# 永远打不出来，误报"重攻击不按 0→1→2 推进"。
+	for e in get_nodes_in_group("enemy"):
+		e.global_position = Vector2(9000, 9000)
+		e.set_physics_process(false)
+	for pj in get_nodes_in_group("projectile"):
+		pj.queue_free()
+	for i in 4:
+		await physics_frame
+
 	print("── 重攻击三连验证 ──")
 
 	# ── 1. 三连能依次推进 0→1→2 ──
-	# **用真实按键驱动**：按住重击键，记录段号轨迹。
-	# 早期用手动 start_heavy_attack() 反复调，会和"段结束自动接段"打架
-	# （buffer 已被消费、state 还在 ATTACK），测不出真实行为。
+	# 用真实按键驱动，逐帧采样记录"出现过的段号序列"。
+	# **注意**：段号是"正在打第几段"，第 3 段打完会立刻变回 0，
+	# 单次 if 判断容易漏掉某一帧（实测漏了 index=2）。
+	# 这里按"段号变化"记录，并且只在见过 2 之后才允许结束。
 	var seen: Array[int] = []
+	var seen_set := {}
 	Input.action_press("heavy")
 	for i in 420:
 		await physics_frame
-		if player.is_heavy() or player.get_heavy_index() > 0:
-			var idx: int = player.get_heavy_index()
+		var idx: int = player.get_heavy_index()
+		if player.is_heavy():
+			seen_set[idx] = true
 			if seen.is_empty() or seen[seen.size() - 1] != idx:
-				# 回到 0 说明新起一套，第一轮记录到此为止
-				if idx == 0 and seen.size() >= 3:
-					break
 				seen.append(idx)
-		if seen.size() >= 3 and player.get_heavy_index() == 2:
+		# 三个段号都见过 + 已经脱离攻击 → 三连跑完了
+		if seen_set.size() >= 3 and not player.is_heavy():
 			break
 	Input.action_release("heavy")
+	# 用第一次出现的顺序做断言（0→1→2）
+	var first_three: Array[int] = []
+	for v in seen:
+		if not first_three.has(v):
+			first_three.append(v)
+		if first_three.size() >= 3:
+			break
 
-	_check(seen == [0, 1, 2], "1. 重攻击连段按 0→1→2 推进",
-	       "实际 %s" % str(seen))
-
+	_check(first_three == [0, 1, 2], "1. 重攻击连段按 0→1→2 推进",
+	       "实际 %s（原始轨迹 %s）" % [str(first_three), str(seen)])
 	# ── 2. 第 3 段打完不回到第 1 段（不循环）──
 	player._heavy_idle = 0.0
 	player._heavy_buffer = true

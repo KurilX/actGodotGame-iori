@@ -15,7 +15,7 @@ var _retreat := 0.0
 func _ready() -> void:
 	max_hp = 9                  # 血最薄
 	move_speed = 46.0           # 但最灵活
-	detect_range = 150.0
+	detect_range = 280.0
 	attack_range = 34.0
 	attack_cooldown = 1.6
 	windup_time = 0.38
@@ -24,6 +24,20 @@ func _ready() -> void:
 	damage = 1
 	knockback_resist = 0.6      # 最容易被击飞
 	can_fly = true
+
+	# ── 远程：甩光球 ──
+	# 定位：**空中骚扰**。它在天上，玩家够不到，只能用弹反处理。
+	# 弹速最快（180）、弹体最小（3.5），但伤害低（1），
+	# 冷却也较长（2.8s），因为它是唯一"打不到本体"的敌人，
+	# 远程如果太频繁会让玩家很烦。
+	ranged_enabled = true
+	ranged_cooldown = 2.8
+	ranged_speed = 180.0
+	ranged_damage = 1
+	ranged_radius = 3.5
+	ranged_windup = 0.40
+	ranged_min_dist = 100.0
+	ranged_max_dist = 280.0
 	attack_box = Vector4(24, 20, 14, -18)
 	sprite_name = "lanternbug"
 	super._ready()

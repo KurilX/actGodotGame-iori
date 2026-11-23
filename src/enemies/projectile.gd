@@ -163,9 +163,26 @@ func _handle_hit(target: Node) -> void:
 
 	# 未弹反：只伤玩家
 	if target.has_method("take_damage"):
+		# **可弹反的弹幕在击中前先问一次玩家要不要弹反**。
+		#
+		# 为什么需要这一步：弹幕的 HitArea 和玩家的攻击判定框都是 Area2D，
+		# 谁先响应取决于物理帧处理顺序 —— 实测弹幕总是先撞上玩家身体
+		# 然后 queue_free()，玩家的判定框根本没机会碰到它，
+		# 弹反永远失败。这里在真正结算伤害前主动给玩家一次机会。
+		if reflectable and not _reflected:
+			var player := _find_player()
+			if player != null and player.has_method("try_parry_incoming"):
+				if player.call("try_parry_incoming", self):
+					return          # 已被弹反，弹幕不再消失
 		target.take_damage(damage, global_position.x)
 		hit_player.emit()
 		queue_free()
+
+
+func _find_player() -> Node:
+	for p in get_tree().get_nodes_in_group("player"):
+		return p
+	return null
 
 
 func _clear_trail() -> void:

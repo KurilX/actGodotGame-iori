@@ -38,6 +38,7 @@ const SaveSystem := preload("res://src/systems/save_system.gd")
 const MainMenu := preload("res://src/ui/main_menu.gd")
 const SettingsPanel := preload("res://src/ui/settings_panel.gd")
 const TutorialHints := preload("res://src/ui/tutorial_hints.gd")
+const ParrySpark := preload("res://src/skills/parry_spark.gd")
 
 var skill_tree: Node
 var save: Node
@@ -353,6 +354,29 @@ func _connect_player(room: Node) -> void:
 		_bt.trigger(_player.global_position, cam)
 		_combo.register_perfect_dodge())
 
+	# ── 弹反成功反馈 ──
+	# 弹反是常驻技能，每次成功都必须有明确反馈，否则玩家不知道自己成功了。
+	# 三层：震屏（力度感）+ 连击加成（正反馈）+ 弹幕变金色飞回去（因果可见）。
+	_player.parried.connect(func(proj: Node) -> void:
+		var cam2 := _find_camera(_player)
+		if cam2 != null:
+			cam2.shake(5.0, 0.18)
+		_combo.register_perfect_dodge()
+		# 弹反点爆闪：用一个短命的自绘节点，比开新场景/粒子省事
+		_spawn_parry_spark(proj.global_position if is_instance_valid(proj)
+						   else _player.global_position))
+
+
+func _spawn_parry_spark(pos: Vector2) -> void:
+	"""弹反成功的爆闪：几圈快速扩散的硬边环 + 中心亮核。
+
+	不用粒子系统：像素风不能有平滑模糊，粒子的半透明缩放会糊。
+	用 Tween 驱动一个自绘节点，0.25s 结束。
+	"""
+	var node := ParrySpark.new()
+	node.z_index = 46
+	_room.add_child(node)
+	node.global_position = pos
 
 func _on_segment_done(_heavy: bool) -> void:
 	skill_tree.push_action("")

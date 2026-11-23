@@ -31,6 +31,36 @@ enum State { IDLE, CHASE, WINDUP, ATTACK, HURT, DEAD }
 @export var heavy_breaks := true      # 重攻击能否打断其动作
 @export var sprite_name := ""         # art/enemies/frames/ 下的前缀
 
+# ── 远程招式（可选）──
+#
+# **为什么杂兵也要有远程**：弹反是玩家常驻技能，但原来全游戏只有 BOSS
+# 发射弹幕，导致玩家在 1560px 的教程关和所有杂兵战里根本见不到可弹的东西，
+# 弹反实际变成了"BOSS 二阶段专属机制"。给杂兵加远程后，弹反贯穿全程。
+#
+# 每个敌人用数据配置自己的远程：
+#   ranged_enabled   是否启用
+#   ranged_cooldown  远程冷却（比近战长，避免刷屏）
+#   ranged_speed     弹速
+#   ranged_damage    伤害
+#   ranged_radius    弹体大小
+#   ranged_color     颜色（用可弹反的青色系）
+@export var ranged_enabled := false
+@export var ranged_cooldown := 2.6
+@export var ranged_speed := 110.0
+@export var ranged_damage := 1
+@export var ranged_radius := 4.0
+@export var ranged_windup := 0.45     # 远程前摇（比近战长，给玩家反应时间）
+@export var ranged_min_dist := 70.0   # 就近战太近时改用近战
+@export var ranged_max_dist := 260.0  # 超出这个距离不发射
+
+const ProjectileR := preload("res://src/enemies/projectile.gd")
+
+var _ranged_cd := 0.0                 # 远程冷却计时
+var _ranged_windup_left := 0.0        # 远程前摇剩余
+var _ranged_pending := false          # 前摇结束要发射
+
+signal ranged_fired
+
 var hp := 10
 var state: State = State.IDLE
 var facing := -1
@@ -120,6 +150,7 @@ func _build_hitbox() -> void:
 # ─────────────── 主循环 ───────────────
 
 func _physics_process(delta: float) -> void:
+	_tick_ranged(delta)
 	_tick(delta)
 	if state == State.DEAD:
 		return
@@ -187,6 +218,89 @@ func _do_chase(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, dir * move_speed, 600.0 * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
+
+
+# ─────────────── 远程招式 ───────────────
+
+func _tick_ranged(delta: float) -> void:
+	if not ranged_enabled:
+		return
+	_ranged_cd = maxf(_ranged_cd - delta, 0.0)
+
+	# 前摇中：到点就发射
+	if _ranged_pending:
+		_ranged_windup_left -= delta
+		if _ranged_windup_left <= 0.0:
+			_ranged_pending = false
+			_fire_projectile()
+		return
+
+	# **不受 state 限制**：远程的作用就是"在近战够不到的地方施加压力"。
+	# 之前只在 CHASE 里触发，结果敌人 detect_range(120) 小于射程(240)，
+	# 玩家站在 140 距离时敌人既不动也不开枪 —— 远程形同虚设（实测）。
+	# 现在只要不在受击/死亡/前摇中就允许开火。
+	if state == State.HURT or state == State.DEAD:
+		return
+	if state == State.WINDUP or state == State.ATTACK:
+		return
+	if _ranged_cd > 0.0:
+		return
+	var player := _find_player()
+	if player == null:
+		return
+	var d := _distance_to_player()
+	if d < ranged_min_dist or d > ranged_max_dist:
+		return
+	# 进入前摇：站住蓄力，给玩家反应时间
+	_begin_ranged_windup()
+
+
+func _begin_ranged_windup() -> void:
+	_ranged_pending = true
+	_ranged_windup_left = ranged_windup
+	velocity.x = 0.0
+	if _anim and _anim.sprite_frames.has_animation("attack"):
+		_anim.play("attack")
+		_anim.frame = 0
+		_anim.pause()
+
+
+func _fire_projectile() -> void:
+	var player := _find_player()
+	if player == null:
+		_cancel_ranged()
+		return
+	# 瞄准玩家躯干中心。
+	# 玩家 global_position 是脚底，躯干大约在 -30 处（身高 48，碰撞盒中心 -20）。
+	# 之前瞄 -14 太靠脚，弹幕会从判定框下方擦过去（实测打不中）。
+	var origin := global_position + Vector2(0, -18)
+	var aim := player.global_position + Vector2(0, -30)
+	var dir := (aim - origin).normalized()
+
+	var p := Area2D.new()
+	p.set_script(ProjectileR)
+	get_parent().add_child(p)
+	p.spawn(origin, dir, {
+		"speed": ranged_speed,
+		"damage": ranged_damage,
+		"radius": ranged_radius,
+		"reflectable": true,
+		"lifetime": 3.2,
+	})
+	_ranged_cd = ranged_cooldown
+	# 发射时面向玩家
+	if player.global_position.x != global_position.x:
+		facing = 1 if player.global_position.x > global_position.x else -1
+	ranged_fired.emit()
+
+
+func _cancel_ranged() -> void:
+	_ranged_pending = false
+	_ranged_windup_left = 0.0
+
+
+func is_ranged_winding() -> bool:
+	return _ranged_pending
 
 
 func _enter_windup() -> void:

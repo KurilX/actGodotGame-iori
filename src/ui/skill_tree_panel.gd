@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## 技能树面板：按 Tab 打开/关闭。
 ##
 ## ## 布局
@@ -141,7 +143,7 @@ func _draw() -> void:
 		draw_line(Vector2(0, y), Vector2(vs.x, y),
 				  Color(C_GRID.r, C_GRID.g, C_GRID.b, C_GRID.a * a), 1.0)
 
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 
 	# ── 标题 ──
 	var title := "技能树"

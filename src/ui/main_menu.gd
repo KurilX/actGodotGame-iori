@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## 主菜单：开始游戏 / 继续游戏 / 设置，外加存档槽导出。
 ##
 ## ## 布局
@@ -219,7 +221,7 @@ func _draw() -> void:
 	for y in range(0, int(vs.y), int(gs)):
 		draw_line(Vector2(0, y), Vector2(vs.x, y), grid, 1.0)
 
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 
 	# ── 标题 ──
 	var title := "缀"

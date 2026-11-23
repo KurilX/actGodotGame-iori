@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## 连击条：右侧竖条，按连击段数累加，满了升级评级（F → SS）。
 ##
 ## ## 评分规则
@@ -249,7 +251,7 @@ func _draw() -> void:
 
 	# 用 draw_string 需要字体，改用 draw_rect 拼字符太重；
 	# 这里用 Godot 默认主题字体
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 	var fsize := int(13 * scale_k)
 	var col_lbl := _rank_color()
 	# 描边：先画深色偏移，再画本体（提升在夜景上的可读性）

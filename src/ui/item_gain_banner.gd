@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## 道具获得演出：横幅 + 图标 + 技能名，附带一次全屏光效。
 ##
 ## ## 时序
@@ -135,7 +137,7 @@ func _draw() -> void:
 						  Color(1, 1, 1, a))
 
 	# ── 文字 ──
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 	var tx := bx + 14.0 + (ICON_SIZE if _icon != null else 0.0) + 14.0
 	var ty := by + 22.0
 

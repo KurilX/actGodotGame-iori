@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## BOSS 血条：屏幕顶部横条，分三段显示阶段。
 ##
 ## ## 为什么分段画
@@ -99,7 +101,7 @@ func _draw() -> void:
 	var y0 := MARGIN_TOP
 
 	# ── 名字 ──
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 	var fsize := 11
 	var tw := font.get_string_size(_name, HORIZONTAL_ALIGNMENT_LEFT,
 								  -1, fsize).x

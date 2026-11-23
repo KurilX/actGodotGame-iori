@@ -1,4 +1,6 @@
 extends Control
+
+const GameFont := preload("res://src/ui/game_font.gd")
 ## 设置面板：音量、画面、存档管理、返回菜单。
 ##
 ## ## 为什么设置里也要有存档操作
@@ -190,7 +192,7 @@ func _draw() -> void:
 	if not visible:
 		return
 	var vs := get_viewport_rect().size
-	var font := ThemeDB.fallback_font
+	var font := GameFont.get_font()
 
 	draw_rect(Rect2(Vector2.ZERO, vs), C_BG)
 	# 网格底纹

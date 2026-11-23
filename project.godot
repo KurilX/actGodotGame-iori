@@ -28,6 +28,12 @@ window/handheld/orientation=1
 window/size/initial_position_type=0
 window/size/resizable=true
 
+[gui]
+
+; 全局默认字体：必须指定，否则 Web 导出下中文渲染成方块（tofu）。
+; 字体是子集化的（tools/make_font_subset.py 生成，约 1MB）。
+theme/custom_font="res://assets/fonts/game_zh.ttf"
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0

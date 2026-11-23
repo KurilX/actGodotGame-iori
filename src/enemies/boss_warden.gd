@@ -65,10 +65,26 @@ var _invuln := 0.0
 var _phase_transition := false
 
 
+## 玩家进入 BOSS 房之前保持休眠：不移动、不攻击、不检测。
+## 由 room_greybox 在玩家跨过 BOSS_ZONE_START 时调用 wake()。
+var _dormant := true
+
+
+func wake() -> void:
+	_dormant = false
+
+
+func is_dormant() -> bool:
+	return _dormant
+
+
 func _ready() -> void:
 	max_hp = 120
 	move_speed = 42.0
-	detect_range = 999.0        # BOSS 房一直锁定玩家
+	# **不能是 999**：关卡扩成 2400px 后，BOSS 会从教程关就开始锁定玩家、
+	# 一路冲出 BOSS 房追到教学段（实测），玩家还没学会走路就撞上 BOSS。
+	# 改成"进入 BOSS 房才激活"：由 room 在玩家跨过 BOSS_ZONE_START 时唤醒。
+	detect_range = 380.0        # 略大于 BOSS 房宽度，房内全程锁定
 	attack_range = 62.0
 	attack_cooldown = 1.1
 	windup_time = 0.55
@@ -148,6 +164,16 @@ func _build_warning() -> void:
 # ─────────────── 主循环 ───────────────
 
 func _physics_process(delta: float) -> void:
+	# ── 休眠：玩家还没进 BOSS 房 ──
+	# **必须在 super 之前拦住**，否则父类的 _physics_process 会做
+	# 寻敌和状态推进，BOSS 会自己走向玩家（实测会一路走到教学段）。
+	if _dormant:
+		velocity.x = 0.0
+		if _anim != null and _anim.animation != "idle":
+			_anim.play("idle")
+		move_and_slide()
+		return
+
 	super._physics_process(delta)
 
 	if state == State.DEAD or _phase_transition:

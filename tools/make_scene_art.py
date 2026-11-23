@@ -55,13 +55,37 @@ P = {
 # 4×4 Bayer 有序抖动矩阵（模块级：天空、月亮光晕、灯笼光晕都要用）
 BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
-ROOM_W, ROOM_H = 960, 540
+ROOM_W, ROOM_H = 2400, 540
+
+# 教程关与主关卡的分界点（世界坐标 x）
+TUTORIAL_END = 1560
+
+# 教程关用黄昏暖调，主关卡保持深夜冷调 —— 色调差暗示"出发"vs"抵达"
+# 黄昏配色。
+# **必须比夜色明显亮**：第一版用了偏暗的紫，截图出来和主关卡几乎没区别，
+# 玩家感受不到"这是另一个地方"。整体提亮 + 加橙调。
+DUSK = {
+    "sky_far":  "#6B4E7A",   # 暮色远（亮紫）
+    "sky_mid":  "#8A5C86",   # 暮色中（紫红）
+    "sky_near": "#B8738C",   # 暮色近（霞光）
+    "mtn_far":  "#4A3560",   # 远山（紫，但比天空暗）
+    "mtn_mid":  "#5E4270",
+    "mtn_near": "#7A5580",
+    "sun":      "#FFC46B",   # 落日
+    "sun_hi":   "#FFE9A8",
+}
 GROUND_Y = 480          # 地面顶部（与 SOLIDS 一致）
 
 
 def hx(key, a=255):
     h = P[key].lstrip("#")
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
+
+
+def hex_rgb(h):
+    """把 "#RRGGBB" 转成 (r, g, b)。DUSK 字典里放的是裸十六进制串。"""
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
 # ─────────────────────── 远景：夜空 ───────────────────────
@@ -83,25 +107,50 @@ def make_sky():
     # 渐变只在**可见区间**（相机看到的 y=270~480）内做，
     # 这样玩家眼前总有层次，而不是一整片纯色。
     VIS_TOP = 265
-    stops = [
+    # 两套配色：x < TUTORIAL_END 用黄昏，x >= 用夜色。
+    # 在边界前后 120px 内做**抖动混合**：黄昏色和夜色按比例交错，
+    # 远看是平滑过渡，近看仍是纯色块（不破坏像素感、不引入新颜色）。
+    dusk_stops = [
+        (0.00, hex_rgb(DUSK["sky_far"]) + (255,)),
+        (0.50, hex_rgb(DUSK["sky_mid"]) + (255,)),
+        (1.00, hex_rgb(DUSK["sky_near"]) + (255,)),
+    ]
+    night_stops = [
         (0.00, hx("night_far")),
         (0.50, hx("night_mid")),
         (1.00, hx("night_near")),
     ]
 
+    def pick_stops(x):
+        """返回该 x 位置应使用的配色。过渡区里按 x 决定，由抖动实现混合。"""
+        return dusk_stops if x < TUTORIAL_END else night_stops
+
+    BLEND = 120
+
     for y in range(int(GROUND_Y)):
         t = max(0.0, (y - VIS_TOP)) / max(1.0, GROUND_Y - VIS_TOP)
-        # 找所在区间
-        seg = 0
-        for i in range(len(stops) - 1):
-            if stops[i][0] <= t <= stops[i + 1][0]:
-                seg = i
-                break
-        t0, c0 = stops[seg]
-        t1, c1 = stops[seg + 1]
-        local = 0.0 if t1 <= t0 else (t - t0) / (t1 - t0)
 
         for x in range(ROOM_W):
+            # 过渡带：黄昏/夜色按 x 位置和抖动比例混合
+            if x < TUTORIAL_END - BLEND:
+                stops = dusk_stops
+            elif x >= TUTORIAL_END:
+                stops = night_stops
+            else:
+                # 过渡带内，抖动决定这一像素取哪套
+                th_blend = (BAYER[y % 4][x % 4] + 0.5) / 16.0
+                ratio = (x - (TUTORIAL_END - BLEND)) / BLEND
+                stops = night_stops if th_blend < ratio else dusk_stops
+
+            seg = 0
+            for i in range(len(stops) - 1):
+                if stops[i][0] <= t <= stops[i + 1][0]:
+                    seg = i
+                    break
+            t0, c0 = stops[seg]
+            t1, c1 = stops[seg + 1]
+            local = 0.0 if t1 <= t0 else (t - t0) / (t1 - t0)
+
             th = (BAYER[y % 4][x % 4] + 0.5) / 16.0
             c = c1 if local > th else c0
             px[x, y] = c
@@ -114,13 +163,14 @@ def make_sky():
     # 可见区域只有 y=270~540（视口 270 高）。远山必须落在这个区间内，
     # 否则玩家永远看不到（第一版放在 y=150~288，结果整片山都在画面外）。
     layers = [
-        # (颜色, 基准高度, 起伏幅度, 波长)
-        (hx("night_far"),  318, 26, 620),
-        (hx("night_mid"),  368, 32, 460),
-        (hx("night_near"), 420, 38, 380),
+        # (夜色, 黄昏色, 基准高度, 起伏幅度, 波长)
+        (hx("night_far"),  hex_rgb(DUSK["mtn_far"]) + (255,),  318, 26, 620),
+        (hx("night_mid"),  hex_rgb(DUSK["mtn_mid"]) + (255,),  368, 32, 460),
+        (hx("night_near"), hex_rgb(DUSK["mtn_near"]) + (255,), 420, 38, 380),
     ]
-    for color, base, amp, wave in layers:
+    for night_c, dusk_c, base, amp, wave in layers:
         for x in range(ROOM_W):
+            color = dusk_c if x < TUTORIAL_END else night_c
             # 多频正弦叠加，避免呆板的规则山脉
             h = (math.sin(x / wave * math.tau) * amp
                  + math.sin(x / (wave * 0.43) * math.tau + 1.7) * amp * 0.45
@@ -189,15 +239,25 @@ def make_terrain():
     # SOLIDS 的几何 —— **必须与 room_greybox.gd 的 SOLIDS 常量完全一致**。
     # 早期这里只写了 4 块（凭印象），实际有 8 块，导致贴图上的石台
     # 与碰撞体错位：玩家会踩空或撞到看不见的墙。
+    # **必须与 room_greybox.gd 的 SOLIDS 完全一致** —— 否则贴图上的石台
+    # 会和碰撞体错位，玩家会踩空或撞到看不见的墙。
     solids = [
-        (0, 480, 960, 60),      # 地面（整条）
-        (0, 420, 96, 60),       # 左侧台阶 1
-        (96, 372, 72, 48),      # 左侧台阶 2
-        (168, 324, 60, 48),     # 左侧台阶 3
-        (300, 340, 120, 24),    # 中间高台
-        (720, 288, 48, 192),    # 右侧塔
-        (768, 420, 192, 60),    # 右侧地面段
-        (0, 0, 960, 20),        # 天花板
+        (0, 480, 2400, 60),      # 地面（整条）
+        # ① 移动教学：三级台阶
+        (120, 440, 72, 40),
+        (220, 400, 72, 40),
+        (320, 360, 72, 40),
+        (0, 250, 150, 20),
+        # ③ 重攻击教学：石守的高台
+        (1120, 420, 130, 60),
+        # ⑤ 综合段
+        (1900, 440, 90, 40),
+        # 主关卡：BOSS 房
+        (2160, 288, 48, 192),
+        (2208, 420, 192, 60),
+        (1560, 0, 840, 12),
+        # 边界
+        (0, 0, 2400, 12),
     ]
 
     for i, (x, y, w, h) in enumerate(solids):

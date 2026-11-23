@@ -37,6 +37,7 @@ const PierceWeaveFx := preload("res://src/skills/pierce_weave_fx.gd")
 const SaveSystem := preload("res://src/systems/save_system.gd")
 const MainMenu := preload("res://src/ui/main_menu.gd")
 const SettingsPanel := preload("res://src/ui/settings_panel.gd")
+const TutorialHints := preload("res://src/ui/tutorial_hints.gd")
 
 var skill_tree: Node
 var save: Node
@@ -53,6 +54,7 @@ var _bt: Control
 var _bossbar: Control
 var _banner: Control
 var _panel: Control
+var _tutorial: Control
 var _touch: Control
 
 # 需要随游戏创建/销毁的层（菜单常驻的不动）
@@ -101,6 +103,9 @@ func _ready() -> void:
 	_combo = _make_game_layer("ComboLayer", 90, ComboMeter, "ComboMeter")
 	_panel = _make_game_layer("SkillTreeLayer", 92, SkillTreePanel,
 							  "SkillTreePanel")
+	# 教程提示放在连击条下层，避免遮挡战斗信息
+	_tutorial = _make_game_layer("TutorialLayer", 86, TutorialHints,
+								 "TutorialHints")
 	_touch = _make_game_layer("TouchLayer", 100, TouchControls, "TouchControls")
 	_panel.bind(skill_tree)
 
@@ -164,6 +169,8 @@ func _enter_game(from_save: bool) -> void:
 	if _player != null and skill_tree.has_method("bind_chain"):
 		skill_tree.bind_chain(_player.get_chain())
 
+	if _tutorial != null and _player != null:
+		_tutorial.bind_player(_player)
 	_connect_player(_room)
 	_connect_boss(_room)
 
@@ -381,8 +388,14 @@ func _connect_boss(room: Node) -> void:
 	if boss == null:
 		return
 
-	_bossbar.show_boss("瓷面的守夜人")
-	_bossbar.set_hp(1.0)
+	# **血条默认不显示**：玩家还在教程关时不该看到 BOSS 血条。
+	# 等 room 的 boss_awakened 信号（玩家跨过 BOSS 房分界线）再显示。
+	_bossbar.hide_boss()
+
+	if room.has_signal("boss_awakened"):
+		room.boss_awakened.connect(func(_b: Node) -> void:
+			_bossbar.set_hp(1.0)
+			_bossbar.show_boss("瓷面的守夜人"))
 
 	var timer := Timer.new()
 	timer.wait_time = 0.05

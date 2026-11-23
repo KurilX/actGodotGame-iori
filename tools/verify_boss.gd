@@ -27,11 +27,23 @@ func _init() -> void:
 	var boss = _find_boss(root)
 	var player = _find_player(root)
 	var bar = _find_script(root, "boss_healthbar")
+	var room = _find_room(root)
 
 	if boss == null:
 		printerr("FAIL 未找到 BOSS")
 		quit(1)
 		return
+
+	# ── 0. 唤醒 BOSS ──
+	# 关卡扩成 2400px 后 BOSS 默认休眠（玩家在教程关时不该被追），
+	# 测试要先把它唤醒，否则它不动、血条也不显示。
+	if boss.has_method("wake"):
+		boss.wake()
+	# 通知 UI 显示血条（正常流程是 player 跨过 BOSS_ZONE_START 触发）
+	if room != null and room.has_signal("boss_awakened"):
+		room.boss_awakened.emit(boss)
+	for i in 6:
+		await physics_frame
 
 	# ── 1. 基础属性 ──
 	_check(boss.max_hp == 120, "1. BOSS 血量 120",
@@ -181,6 +193,17 @@ func _find_boss(node: Node):
 		return node
 	for c in node.get_children():
 		var r = _find_boss(c)
+		if r:
+			return r
+	return null
+
+
+func _find_room(node: Node):
+	var s = node.get_script()
+	if s != null and str(s.resource_path).contains("room_greybox"):
+		return node
+	for c in node.get_children():
+		var r = _find_room(c)
 		if r:
 			return r
 	return null

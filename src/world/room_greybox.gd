@@ -7,44 +7,85 @@ extends Node2D
 
 # BOSS 生成后发出，供 UI 层连接血条
 signal boss_spawned(boss: Node2D)
+# 玩家进入 BOSS 房、BOSS 苏醒时发出 —— UI 层据此显示血条
+signal boss_awakened(boss: Node2D)
 
 var boss: Node2D = null
 
-const ROOM_W := 960
+# ── 房间尺寸 ──
+#
+# 整张地图是一条从左到右的横线，分两大段：
+#   x    0 ~ 1560   教程关（5 个教学段，见 docs/04-教程关设计.md）
+#   x 1560 ~ 2400   主关卡（BOSS 房）
+#
+# 为什么合成一个场景而不是两个：
+#   1. 现在没有场景切换系统，拆开要额外写加载/过渡
+#   2. 横版动作里"走过去"本身就有连续感
+#   3. 存档只需记一个坐标，不用记"在哪个场景"
+# 以后要拆时，把两段的 SOLIDS 各切一半、加个 transition 节点即可。
+const ROOM_W := 2400
 const ROOM_H := 540
+
+# 段边界（世界坐标 x）
+const TUTORIAL_END := 1560.0
+const BOSS_ZONE_START := 1560.0
 
 # 实心地形矩形：[x, y, w, h]（游戏像素，y 向下）
 const SOLIDS := [
-	# 地面（整条）
-	[0, 480, 960, 60],
-	# 左侧台阶（练跳）
-	[0, 420, 96, 60],
-	[96, 372, 72, 48],
-	[168, 324, 60, 48],
-	# 中间高台
-	[300, 340, 120, 24],
-	# 右侧塔
-	[720, 288, 48, 192],
-	[768, 420, 192, 60],
-	# 天花板
-	[0, 0, 960, 12],
-	# 左右墙
-	[-12, 0, 12, 540],
-	[960, 0, 12, 540],
-	# 一层地板（把房间分成上下两块）
-	[0, 250, 180, 20],
+	# ═══════════ 地面（整条，贯穿全图）═══════════
+	[0, 480, 2400, 60],
+
+	# ═══════════ ① 移动教学（x 0~500）═══════════
+	# 三级台阶：高 40px、间隔 100px。这个间距略小于跳跃极限，
+	# 新手一次就能上去（跳跃高度约 58px，实测）。
+	[120, 440, 72, 40],
+	[220, 400, 72, 40],
+	[320, 360, 72, 40],
+	# 一层地板（教"上跳穿单向平台"）
+	[0, 250, 150, 20],
+
+	# ═══════════ ② 轻攻击教学（x 500~900）═══════════
+	# 平地，只放一块单向平台做可选练习
+
+	# ═══════════ ③ 重攻击教学（x 900~1400）═══════════
+	# 石守站的高台（60px 高 = 玩家身高 48 + 一点余量，跳上去正好能打）
+	[1120, 420, 130, 60],
+
+	# ═══════════ ④ 闪避教学（x 1400~1900）═══════════
+	# 刻意留空：这段是开阔地，两只苔团从两侧夹击
+
+	# ═══════════ ⑤ 综合（x 1900~2400）═══════════
+	# 一小段抬高的地形，制造高低差让三种敌人各显其能
+	[1900, 440, 90, 40],
+
+	# ═══════════ 主关卡：BOSS 房（x 1560~2400）═══════════
+	# 左侧塔（和原来一样，作为视觉锚点）
+	[2160, 288, 48, 192],
+	[2208, 420, 192, 60],
+	# BOSS 房的天花板压低一点，形成压迫感
+	[1560, 0, 840, 12],
+
+	# ═══════════ 边界 ═══════════
+	[0, 0, 2400, 12],          # 天花板（全图）
+	[-12, 0, 12, 540],         # 左墙
+	[2400, 0, 12, 540],        # 右墙
 ]
 
 # 单向平台：[x, y, w] —— 可以从下方跳上去
 const ONE_WAY := [
+	# ① 移动教学
 	[200, 300, 84],
-	[420, 260, 72],
-	[560, 320, 96],
-	[300, 180, 120],
+	# ② 轻攻击教学（可选上去）
+	[600, 320, 96],
+	[560, 200, 100],
+	# ③ 重攻击教学（高台上方，跳上去打完可以站这）
+	[980, 260, 80],
+	# ⑤ 综合段
+	[2020, 260, 120],
 ]
 
-# 出生点（落在地面中央，避免一出生就站在台阶上）
-const SPAWN := Vector2(240, 400)
+# 出生点：教程关起点，地板上方一点（落地有个轻微下坠，手感更自然）
+const SPAWN := Vector2(80, 440)
 
 
 func _ready() -> void:
@@ -94,7 +135,7 @@ func _build_visuals() -> void:
 	#   terrain -10  石台（有顶面明暗、砖缝、苔藓）
 	#   deco     -2  草丛 / 紫藤 / 灯笼（在地形之上、角色之下）
 	#
-	# 三张图都是 960x540 全屏尺寸，直接 Sprite2D 贴上，
+	# 三张图都是 ROOM_W x ROOM_H（2400x540）全尺寸，直接 Sprite2D 贴上，
 	# 位置放在房间原点、centered=false。
 	#
 	# 为什么要换成贴图而不是继续用 Polygon2D：
@@ -211,17 +252,35 @@ func _spawn_player() -> void:
 				slash.spawn(origin, player.get_combo_index(), facing))
 
 	# 训练木桩保留一个（用来试连段手感，不会还手）
-	_spawn_dummy(Vector2(300, 480))
+	# 训练木桩放在轻攻击教学段旁边，玩家想练连段随时可以过来
+	_spawn_dummy(Vector2(560, 480))
 
-	# 三种杂兵分布在前半段，作为 BOSS 前的热身：
-	# 玩家从左往右推进，会依次遇到弹跳、飞行、重甲三种威胁，
-	# 走到底就是 BOSS。
-	_spawn_enemy("mossling", Vector2(140, 470))
-	_spawn_enemy("lanternbug", Vector2(300, 430))
-	_spawn_enemy("stonepaw", Vector2(460, 470))
+	# ── 敌人分布：严格按教学段设计（见 docs/04-教程关设计.md）──
+	#
+	# ① 移动段（x 0~500）**不放假人**：第一个怪之前必须有安全区，
+	#    否则新手一进场就被打，学不会任何东西。
 
-	# BOSS「瓷面的守夜人」：站在房间右侧
-	_spawn_boss(Vector2(760, 468))
+	# ② 轻攻击段：1 只苔团。它前摇最长（0.42s）、血最薄（12），
+	#    是唯一适合"站着对打"的敌人。
+	_spawn_enemy("mossling", Vector2(700, 470))
+
+	# ③ 重攻击段：1 只石守站在高台上。
+	#    它有霸体 —— 轻攻击打不断它抡砸，**必须用重击**才能打断。
+	#    这是"轻 vs 重"区别唯一能被玩家亲手发现的机会。
+	_spawn_enemy("stonepaw", Vector2(1150, 415))
+
+	# ④ 闪避段（x 1200~1400）：2 只苔团从两侧夹击，逼玩家用无敌帧穿过去。
+	# 位置避开石守高台（1120~1250），否则会卡在台边。
+	_spawn_enemy("mossling", Vector2(1258, 470))
+	_spawn_enemy("mossling", Vector2(1380, 470))
+
+	# ⑤ 综合段（x 1400~1560）：BOSS 房入口前的最后考验。
+	# 两种互补威胁：灯笼虫在空中逼玩家上跳，石守在地面逼玩家用重击。
+	_spawn_enemy("lanternbug", Vector2(1450, 400))
+	_spawn_enemy("stonepaw", Vector2(1520, 470))
+
+	# BOSS「瓷面的守夜人」：BOSS 房中央
+	_spawn_boss(Vector2(2000, 468))
 
 	# 摄像机跟随玩家，限制在房间内
 	var cam := Camera2D.new()
@@ -233,3 +292,37 @@ func _spawn_player() -> void:
 	cam.position_smoothing_speed = 12.0
 	player.add_child(cam)
 	cam.make_current()
+
+	# ── BOSS 房锁：玩家越过分界线才唤醒 BOSS ──
+	# 用轮询而不是 Area2D：这里只是每帧比较一个 x 值，
+	# 加物理体反而要处理层/遮罩，得不偿失。
+	_boss_lock_timer = Timer.new()
+	_boss_lock_timer.wait_time = 0.1
+	_boss_lock_timer.autostart = true
+	_boss_lock_timer.timeout.connect(_check_boss_lock)
+	add_child(_boss_lock_timer)
+
+
+var _boss_lock_timer: Timer = null
+var _boss_awake := false
+
+
+func _check_boss_lock() -> void:
+	if _boss_awake or boss == null or not is_instance_valid(boss):
+		return
+	var player := _find_player()
+	if player == null:
+		return
+	if player.global_position.x >= BOSS_ZONE_START:
+		_boss_awake = true
+		if boss.has_method("wake"):
+			boss.wake()
+		boss_awakened.emit(boss)
+		if _boss_lock_timer != null:
+			_boss_lock_timer.stop()
+
+
+func _find_player() -> Node2D:
+	for p in get_tree().get_nodes_in_group("player"):
+		return p
+	return null

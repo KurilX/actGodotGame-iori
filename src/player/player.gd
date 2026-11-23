@@ -108,6 +108,10 @@ var _combo_buffer := false        # 是否缓存了攻击输入
 var _hit_this_swing := false      # 本次挥击是否已命中（避免一次判多下）
 var _hit_targets: Array = []      # 本次挥击已命中的目标
 
+# 获得道具动画：独立的计时器，不占用 State
+const GAIN_ANIM_DUR := 0.72
+var _gain_anim_timer := 0.0
+
 # 连段状态（重攻击）—— 与轻攻击完全独立的一套游标，
 # 这样轻重之间可以互不干扰地各自推进（但同一时间只能处于一种攻击中）
 var _heavy_index := 0
@@ -131,6 +135,8 @@ signal hit_landed(target: Node, damage: int)
 signal damaged(amount: int)
 # 空挥：一段攻击打完但没有命中任何目标
 signal whiffed(heavy: bool)
+# 一段攻击打完（无论命中与否）：供技能树追踪连招序列
+signal attack_segment_done(heavy: bool)
 # 刀光请求：由世界层 SlashLayer 接收并绘制，player 自己不画特效
 signal slash_requested(origin: Vector2, deg0: float, deg1: float,
 					   radius: float, color: Color, thick: float,
@@ -311,6 +317,9 @@ func _update_attack(delta: float) -> void:
 		# 清空之后就再也拿不到"是否命中过"的信息了。
 		if _hit_targets.is_empty():
 			whiffed.emit(is_heavy_attack)
+		# 通知技能树：这一段打完了。放在这里是因为无论命中与否
+		# 都算"完成了一个动作"，连招判定看的是动作序列而非命中。
+		attack_segment_done.emit(is_heavy_attack)
 		_hit_this_swing = false
 		_hit_targets.clear()
 		state = State.IDLE
@@ -478,6 +487,20 @@ func start_attack() -> void:
 	_begin_swing()
 
 
+func play_gain_anim() -> void:
+	"""播放"获得道具"动画（抬手接住）。
+
+	用独立的状态位而不是 State 枚举：这只是一个**表现层动画**，
+	不应该阻塞移动/攻击逻辑。如果塞进状态机，玩家在原地看动画时
+	会有"输入没反应"的卡顿感。
+	"""
+	if _anim == null or not _anim.sprite_frames.has_animation("gain"):
+		return
+	_gain_anim_timer = GAIN_ANIM_DUR
+	_anim.play("gain")
+	_anim.frame = 0
+
+
 func get_combo_index() -> int:
 	return _combo_index
 
@@ -615,6 +638,17 @@ func is_dash_invulnerable() -> bool:
 # ────────────────────────────── 状态 ──────────────────────────────
 
 func _tick_timers(delta: float) -> void:
+	# 获得道具动画：独立推进，优先级高于常规动画
+	if _gain_anim_timer > 0.0:
+		_gain_anim_timer = maxf(_gain_anim_timer - delta, 0.0)
+		if _anim and _anim.sprite_frames.has_animation("gain"):
+			var p := 1.0 - _gain_anim_timer / GAIN_ANIM_DUR
+			_anim.pause()
+			_anim.frame = clampi(int(p * 6.0), 0, 5)
+			if _gain_anim_timer <= 0.0:
+				# 结束后恢复常规范式
+				_anim.play("idle")
+
 	_coyote = maxf(_coyote - delta, 0.0)
 	_jump_buffer = maxf(_jump_buffer - delta, 0.0)
 	_invuln = maxf(_invuln - delta, 0.0)
@@ -668,6 +702,9 @@ func _update_state() -> void:
 
 
 func _sync_animation() -> void:
+	# 获得道具动画期间不覆盖它的帧
+	if _gain_anim_timer > 0.0:
+		return
 	match state:
 		State.RUN:
 			_play_anim("run")

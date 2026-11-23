@@ -1,4 +1,4 @@
-[gd_scene load_steps=81 format=3 uid="uid://bqorip1ayer00"]
+[gd_scene load_steps=87 format=3 uid="uid://bqorip1ayer00"]
 
 [ext_resource type="Script" path="res://src/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://src/player/shadow.gd" id="17_shadow"]
@@ -79,6 +79,12 @@
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_5.png" id="t75"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_6.png" id="t76"]
 [ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_heavy3_7.png" id="t77"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_0.png" id="t78"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_1.png" id="t79"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_2.png" id="t80"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_3.png" id="t81"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_4.png" id="t82"]
+[ext_resource type="Texture2D" path="res://art/characters/ori/frames/ori_gain_5.png" id="t83"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(24, 40)
@@ -375,6 +381,29 @@ animations = [
 }],
 "loop": false,
 "name": &"heavy3",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("t78")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t79")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t80")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t81")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t82")
+}, {
+"duration": 1.0,
+"texture": ExtResource("t83")
+}],
+"loop": false,
+"name": &"gain",
 "speed": 1.0
 }
 ]

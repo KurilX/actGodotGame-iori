@@ -20,7 +20,9 @@ func _init() -> void:
 {"name": "dash", "prefix": "ori_dash", "count": 3, "loop": false, "fps": 0.0},
 		{"name": "heavy1", "prefix": "ori_heavy1", "count": 8, "loop": false, "fps": 0.0},
 		{"name": "heavy2", "prefix": "ori_heavy2", "count": 8, "loop": false, "fps": 0.0},
-		{"name": "heavy3", "prefix": "ori_heavy3", "count": 8, "loop": false, "fps": 0.0},
+{"name": "heavy3", "prefix": "ori_heavy3", "count": 8, "loop": false, "fps": 0.0},
+		# 获得道具动画：抬手接住（6 帧，非循环）
+		{"name": "gain", "prefix": "ori_gain", "count": 6, "loop": false, "fps": 0.0},
 	]
 
 	# 收集所有帧，生成 ext_resource 与 SpriteFrames

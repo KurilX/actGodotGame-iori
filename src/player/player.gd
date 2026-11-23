@@ -100,25 +100,40 @@ var _hurt_timer := 0.0
 var _invuln := 0.0
 var _hearts := MAX_HEARTS
 
-# 连段状态（轻攻击）
-var _combo_index := 0             # 当前段（0..3）
-var _combo_timer := 0.0           # 当前段已进行时间
-var _combo_idle := 0.0            # 距离上一段结束的时间（用于接段窗口）
-var _combo_buffer := false        # 是否缓存了攻击输入
-var _hit_this_swing := false      # 本次挥击是否已命中（避免一次判多下）
-var _hit_targets: Array = []      # 本次挥击已命中的目标
+# ── 连段状态：**统一由一条链表达** ──
+#
+# 历史：原来轻重各有一套游标（_combo_index/_heavy_index 等 8 个变量），
+# 每一处判断都要 `if is_heavy_attack: ... else: ...` 分支一次，
+# 而技能树的连招判定又维护了第三份状态（_sequence）。
+# 三者本质是同一个事实的三种投影。
+#
+# 现在全部由 ComboChain 承载：
+#   · 段号        → chain.current_index("light"/"heavy")
+#   · 连招        → chain.matches(pattern)
+#   · 接段窗口    → chain 内部按时间戳清理
+#
+# 下面这些变量保留为**只读映射**，避免改动 70 处调用点；
+# 写入统一走 _chain_push()。
+var _chain = null                       # ComboChain 实例（见 src/player/combo_chain.gd）
+var _combo_index := 0                   # 由链同步：轻攻击当前段
+var _heavy_index := 0                   # 由链同步：重攻击当前段
+var _combo_timer := 0.0                 # 当前段已进行时间（仍是本地计时，与链无关）
+var _heavy_timer := 0.0
+var _combo_idle := 0.0                  # 距上一段结束（保留给外部测试读）
+var _heavy_idle := 0.0
+var _combo_buffer := false              # 是否缓存了攻击输入
+var _heavy_buffer := false
+var is_heavy_attack := false            # 当前 ATTACK 状态属于重攻击
+var _hit_this_swing := false            # 本次挥击是否已命中（避免一次判多下）
+var _hit_targets: Array = []            # 本次挥击已命中的目标
+var _chain_time := 0.0                  # 链的单调时钟（秒）
 
 # 获得道具动画：独立的计时器，不占用 State
 const GAIN_ANIM_DUR := 0.72
+const ComboChain := preload("res://src/player/combo_chain.gd")
 var _gain_anim_timer := 0.0
 
-# 连段状态（重攻击）—— 与轻攻击完全独立的一套游标，
-# 这样轻重之间可以互不干扰地各自推进（但同一时间只能处于一种攻击中）
-var _heavy_index := 0
-var _heavy_timer := 0.0
-var _heavy_idle := 0.0
-var _heavy_buffer := false
-var is_heavy_attack := false      # 当前 ATTACK 状态属于重攻击
+
 
 # 顿帧：>0 时把时间流速压到 HITSTOP_SCALE，制造命中停顿
 var _hitstop := 0.0
@@ -177,6 +192,13 @@ func _ready() -> void:
 	# 加入 player 组：敌人靠这个组找到玩家
 	add_to_group("player")
 	_hitbox.hit_landed.connect(_on_hit_landed)
+
+	# 初始化连段链：把各链的上限与接段窗口注入
+	_chain = ComboChain.new()
+	_chain.configure(COMBO_MAX, HEAVY_MAX, COMBO_INPUT_WINDOW,
+					 HEAVY_INPUT_WINDOW)
+	_chain_time = 0.0
+
 	_play_anim("idle")
 
 
@@ -342,14 +364,15 @@ func _update_attack(delta: float) -> void:
 
 	if buf and progress >= cancel_after and idx < max_n - 1:
 		_hitbox.set_active(false)
+		# 取消进下一段：同样走链，保证链与段号一致
 		if is_heavy_attack:
-			_heavy_index += 1
 			_heavy_timer = 0.0
 			_heavy_buffer = false
+			_heavy_index = _chain_push(ComboChain.KIND_HEAVY)
 		else:
-			_combo_index += 1
 			_combo_timer = 0.0
 			_combo_buffer = false
+			_combo_index = _chain_push(ComboChain.KIND_LIGHT)
 		_hit_this_swing = false
 		_hit_targets.clear()
 		_begin_swing()
@@ -358,20 +381,36 @@ func _update_attack(delta: float) -> void:
 	_animate_attack(progress)
 
 
+func _sync_from_chain() -> void:
+	"""把链里的段号同步到兼容变量。
+
+	兼容层存在的唯一原因：文件里还有 70 处引用 _combo_index/_heavy_index。
+	统一在这里写回，保证读到的永远是链的当前真相。
+	"""
+	_combo_index = _chain.current_index(ComboChain.KIND_LIGHT)
+	_heavy_index = _chain.current_index(ComboChain.KIND_HEAVY)
+
+
+func _chain_push(kind: String) -> int:
+	"""把一次动作推进链，返回段号。"""
+	var idx: int = _chain.push(kind, _chain_time)
+	_sync_from_chain()
+	return idx
+
+
 func _try_next_combo() -> bool:
 	"""轻攻击一段结束后尝试接下一段。
 
-	第 4 段打完后**循环回第 1 段**，这样按住攻击键可以无限连打，
-	而不是打完四段就停手等玩家重新按键（那是很差的连续攻击手感）。
+	第 4 段打完后**循环回第 1 段**（链满整体清空），
+	这样按住攻击键可以无限连打。
 	"""
 	if not _combo_buffer:
 		return false
-	if _combo_index >= COMBO_MAX - 1:
-		_combo_index = 0
-	else:
-		_combo_index += 1
 	_combo_buffer = false
 	is_heavy_attack = false
+	var idx := _chain_push(ComboChain.KIND_LIGHT)
+	# 链已经在回环时清空过，idx 就是正确的段号
+	_combo_index = idx
 	_begin_swing()
 	return true
 
@@ -380,20 +419,20 @@ func _try_next_heavy() -> bool:
 	"""重攻击一段结束后尝试接下一段。
 
 	与轻攻击的差别：**第 3 段打完不回第 1 段**，而是收招结束。
-	重攻击是「一套打完」的爆发，循环回去会变成无脑连按，
-	失去「重」的分量感。
+	重攻击是「一套打完」的爆发，循环回去会变成无脑连按。
 	"""
 	if not _heavy_buffer:
 		return false
-	if _heavy_index >= HEAVY_MAX - 1:
-		# 三段打完就收手，需要重新按键才起新的一套
-		_heavy_buffer = false
+	_heavy_buffer = false
+	# 已经是第 3 段（index 达到上限）→ 收招，不再接
+	var cur: int = _chain.current_index(ComboChain.KIND_HEAVY)
+	if cur >= HEAVY_MAX - 1:
 		_heavy_index = 0
 		_heavy_idle = 999.0
 		return false
-	_heavy_index += 1
-	_heavy_buffer = false
 	is_heavy_attack = true
+	var idx := _chain_push(ComboChain.KIND_HEAVY)
+	_heavy_index = idx
 	_begin_swing()
 	return true
 
@@ -476,14 +515,22 @@ func start_attack() -> void:
 	if state == State.HURT or state == State.DEAD:
 		return
 
+	# 接段条件：距上一段结束不超过窗口，且还没打满
 	var can_chain: bool = _combo_idle <= COMBO_INPUT_WINDOW \
 		and _combo_index < COMBO_MAX - 1 \
 		and _combo_idle < 900.0
-
 	if can_chain:
-		_combo_index += 1
+		var idx := _chain_push(ComboChain.KIND_LIGHT)
+		_combo_index = idx
 	else:
-		_combo_index = 0
+		# 不能再接：从第 1 段重新开始。
+		# 段号来自链，所以必须让链也"重开"（push 出新的一段 index=0），
+		# 否则 _next_index() 会接着旧记录累加。
+		_combo_buffer = false
+		is_heavy_attack = false
+		_combo_index = _chain_push(ComboChain.KIND_LIGHT)
+		_begin_swing()
+		return
 	_begin_swing()
 
 
@@ -499,6 +546,11 @@ func play_gain_anim() -> void:
 	_gain_anim_timer = GAIN_ANIM_DUR
 	_anim.play("gain")
 	_anim.frame = 0
+
+
+func get_chain():
+	"""暴露连段链给技能树读 —— 保证"连段推进"和"连招判定"是同一份状态。"""
+	return _chain
 
 
 func get_combo_index() -> int:
@@ -522,11 +574,12 @@ func start_heavy_attack() -> void:
 	var can_chain: bool = _heavy_idle <= HEAVY_INPUT_WINDOW \
 		and _heavy_index < HEAVY_MAX - 1 \
 		and _heavy_idle < 900.0
-
 	if can_chain:
-		_heavy_index += 1
+		_heavy_index = _chain_push(ComboChain.KIND_HEAVY)
 	else:
-		_heavy_index = 0
+		# 同 light：必须让链也重开，段号以链为准
+		_heavy_index = _chain_push(ComboChain.KIND_HEAVY)
+	_heavy_buffer = false
 	is_heavy_attack = true
 	_begin_swing()
 
@@ -638,6 +691,8 @@ func is_dash_invulnerable() -> bool:
 # ────────────────────────────── 状态 ──────────────────────────────
 
 func _tick_timers(delta: float) -> void:
+	# 链的单调时钟：用于按时间戳清理超窗元素
+	_chain_time += delta
 	# 获得道具动画：独立推进，优先级高于常规动画
 	if _gain_anim_timer > 0.0:
 		_gain_anim_timer = maxf(_gain_anim_timer - delta, 0.0)

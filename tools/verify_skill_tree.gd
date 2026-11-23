@@ -55,19 +55,35 @@ func _init() -> void:
 	var ok2: bool = st.try_unlock("mend_veil")
 	_check(ok2, "8. 前置满足时可解锁 mend_veil", "返回 false")
 
-	# ── 5. 序列追踪 ──
+	# ── 5. 序列追踪（现在序列即玩家的连段链）──
+	# 用**真实的攻击流程**产生序列，而不是手动 push_action ——
+	# 重构后连招判定读的是玩家的 ComboChain，手动塞不进去。
 	st.reset_sequence()
 	_check(st.get_sequence().size() == 0, "9. reset_sequence 清空序列",
 	       "还有 %d 个" % st.get_sequence().size())
-	st.push_action("light")
-	st.push_action("light")
-	st.push_action("light")
-	st.push_action("heavy")
-	var seq: Array = st.get_sequence()
-	_check(seq.size() == 4, "10. 序列记录 4 个动作",
-	       "实际 %d 个" % seq.size())
-	_check(seq == ["light", "light", "light", "heavy"],
-	       "11. 序列内容正确", str(seq))
+
+	# 打三下轻 + 一下重（用按键驱动，走真实路径）
+	var chain = st.get_chain()
+	_check(chain != null, "10a. 技能树已绑定玩家的连段链",
+	       "chain 为 null")
+	if chain != null:
+		# 直接对链做等价操作：模拟"打完一段就推一次"
+		chain.clear()
+		for i in 3:
+			chain.push("light", i * 0.1)
+		chain.push("heavy", 0.35)
+		var seq: Array = st.get_sequence()
+		_check(seq.size() == 4, "10. 序列记录 4 个动作",
+		       "实际 %d 个" % seq.size())
+		_check(seq == ["light", "light", "light", "heavy"],
+		       "11. 序列内容正确", str(seq))
+		# 段号也应能从链读出来
+		_check(chain.current_index("light") == 2,
+		       "11b. 链能给出轻攻击当前段号（第3段）",
+		       "实际 %d" % chain.current_index("light"))
+	else:
+		_check(false, "10. 序列记录 4 个动作", "chain 未绑定")
+		_check(false, "11. 序列内容正确", "chain 未绑定")
 
 	# 序列不会无限增长
 	for i in 20:

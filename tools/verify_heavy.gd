@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 重攻击三连验证：连段推进、时长/伤害比轻攻击更大、不能无限循环、顿帧与震屏
 ##
 ## 运行：godot --headless --path . --script tools/verify_heavy.gd
@@ -30,17 +30,23 @@ func _init() -> void:
 	print("── 重攻击三连验证 ──")
 
 	# ── 1. 三连能依次推进 0→1→2 ──
+	# **用真实按键驱动**：按住重击键，记录段号轨迹。
+	# 早期用手动 start_heavy_attack() 反复调，会和"段结束自动接段"打架
+	# （buffer 已被消费、state 还在 ATTACK），测不出真实行为。
 	var seen: Array[int] = []
-	for k in 3:
-		player.start_heavy_attack()
-		seen.append(player.get_heavy_index())
-		_check(player.is_heavy(), "重攻击进入 ATTACK 且标记为 heavy",
-		       "is_heavy() = false")
-		# 重攻击单段最长 0.85s，60Hz 下需要 51 帧；给足 70 帧
-		for i in 70:
-			await physics_frame
-		player._heavy_idle = 0.0     # 保持在接段窗口内
-		player._heavy_buffer = true  # 模拟"已缓存下一次输入"
+	Input.action_press("heavy")
+	for i in 420:
+		await physics_frame
+		if player.is_heavy() or player.get_heavy_index() > 0:
+			var idx: int = player.get_heavy_index()
+			if seen.is_empty() or seen[seen.size() - 1] != idx:
+				# 回到 0 说明新起一套，第一轮记录到此为止
+				if idx == 0 and seen.size() >= 3:
+					break
+				seen.append(idx)
+		if seen.size() >= 3 and player.get_heavy_index() == 2:
+			break
+	Input.action_release("heavy")
 
 	_check(seen == [0, 1, 2], "1. 重攻击连段按 0→1→2 推进",
 	       "实际 %s" % str(seen))

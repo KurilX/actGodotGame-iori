@@ -68,10 +68,15 @@ const SKILLS := {
 
 # 已解锁集合
 var _unlocked: Dictionary = {}
-# 最近的动作序列（用于连招判定）
-var _sequence: Array[String] = []
-# 序列保留多久（秒）—— 太短接不上，太长可以乱按攒
-const SEQ_WINDOW := 1.6
+# **连招判定直接复用玩家侧的连段链**（见 src/player/combo_chain.gd）
+# 不再自己维护一份 _sequence —— 那会导致"两份状态可能不一致"。
+# 由 bootstrap 在玩家就绪后注入。
+var _chain = null
+
+
+func bind_chain(chain) -> void:
+	"""注入连段链。之后所有连招判定都读它。"""
+	_chain = chain
 
 
 func _ready() -> void:
@@ -103,16 +108,12 @@ func get_unlocked_count() -> int:
 # ─────────────── 连招追踪 ───────────────
 
 func push_action(kind: String) -> void:
-	"""记录一次攻击动作。kind 为 "light" 或 "heavy"。
+	"""已废弃：连招序列现在由玩家的 ComboChain 统一维护。
 
-	由 player 在**攻击段结束时**调用（不是按下时），
-	这样"挥空"和"命中"都算动作，但只有真正打完一段才算。
+	保留这个空壳是为了不动 bootstrap 的调用点（它还会调一次），
+	真正的入链发生在 player 的 _chain_push 里。
+	这里只负责"链变化后检查一次解锁"。
 	"""
-	_sequence.append(kind)
-	# 只保留最近 N 个，防止无限增长
-	var keep := 8
-	while _sequence.size() > keep:
-		_sequence.pop_front()
 	_check_unlock()
 
 
@@ -136,26 +137,17 @@ func _check_unlock() -> void:
 				break
 		if not pre_ok:
 			continue
-		if _ends_with(combo):
+		if _chain != null and _chain.matches(combo):
 			_unlock(id)
-
-
-func _ends_with(pattern: Array) -> bool:
-	if _sequence.size() < pattern.size():
-		return false
-	var off := _sequence.size() - pattern.size()
-	for i in pattern.size():
-		if _sequence[off + i] != pattern[i]:
-			return false
-	return true
 
 
 func _unlock(skill_id: String) -> void:
 	if is_unlocked(skill_id):
 		return
 	_unlocked[skill_id] = true
-	# 解锁后清空序列，避免同一个连招连续触发多个技能
-	_sequence.clear()
+	# 解锁后清空链，避免同一个连招连续触发多个技能
+	if _chain != null:
+		_chain.clear()
 	skill_unlocked.emit(skill_id)
 
 
@@ -182,8 +174,18 @@ func try_unlock(skill_id: String) -> bool:
 
 
 func reset_sequence() -> void:
-	_sequence.clear()
+	"""清空连招记录。现在直接清玩家的链（唯一真相）。"""
+	if _chain != null:
+		_chain.clear()
+
+
+func is_bound() -> bool:
+	return _chain != null
 
 
 func get_sequence() -> Array:
-	return _sequence.duplicate()
+	return _chain.kinds() if _chain != null else []
+
+
+func get_chain() -> Variant:
+	return _chain

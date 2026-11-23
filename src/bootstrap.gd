@@ -79,6 +79,12 @@ func _connect_player(room: Node, combo: Control, bt: Control) -> void:
 		printerr("UI：未找到玩家")
 		return
 
+	# **关键**：把玩家的连段链注入技能树。
+	# 这样连段推进和连招判定读的是同一份状态，不会出现
+	# "连段认为打到第3段、连招判定却认为只打了2下"的不一致。
+	if skill_tree != null and skill_tree.has_method("bind_chain"):
+		skill_tree.bind_chain(_player.get_chain())
+
 	_player.hit_landed.connect(func(_t: Node, damage: int) -> void:
 		combo.register_hit(2 if damage >= 4 else 1))
 
@@ -105,10 +111,11 @@ func _connect_player(room: Node, combo: Control, bt: Control) -> void:
 			pass)
 
 
-func _on_segment_done(heavy: bool) -> void:
+func _on_segment_done(_heavy: bool) -> void:
 	if skill_tree == null:
 		return
-	skill_tree.push_action("heavy" if heavy else "light")
+	# 链已由 player 的 _chain_push 维护好，这里只触发一次解锁检查
+	skill_tree.push_action("")
 	# push_action 内部会在序列匹配时解锁技能并 emit。
 	# 但"解锁"和"释放"是两件事：
 	#   · BOSS 掉落 → 解锁（之后可以用）

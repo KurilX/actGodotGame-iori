@@ -548,6 +548,28 @@ func play_gain_anim() -> void:
 	_anim.frame = 0
 
 
+# ─────────────── 存档接口 ───────────────
+
+func to_save_dict() -> Dictionary:
+	"""导出可存档的状态。"""
+	return {
+		"hearts": _hearts,
+		"max_hearts": MAX_HEARTS,
+		"player_pos": [global_position.x, global_position.y],
+	}
+
+
+func from_save_dict(d: Dictionary) -> void:
+	"""从存档恢复状态。缺字段就用默认值，不报错。"""
+	_hearts = clampi(int(d.get("hearts", MAX_HEARTS)), 1, MAX_HEARTS)
+	_invuln = 0.0
+	_hurt_timer = 0.0
+	state = State.IDLE
+	velocity = Vector2.ZERO
+	# 位置由调用方设置（它可能还要处理相机跟随）
+	queue_redraw()
+
+
 func get_chain():
 	"""暴露连段链给技能树读 —— 保证"连段推进"和"连招判定"是同一份状态。"""
 	return _chain

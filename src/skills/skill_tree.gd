@@ -85,6 +85,30 @@ func _ready() -> void:
 			_unlocked[id] = true
 
 
+# ─────────────── 存档接口 ───────────────
+
+func to_save_array() -> Array:
+	"""已解锁技能 id 列表（排序保证稳定，方便校验和比对）。"""
+	var out: Array = []
+	for id in _unlocked:
+		if _unlocked[id]:
+			out.append(id)
+	out.sort()
+	return out
+
+
+func from_save_array(arr: Array) -> void:
+	"""从存档恢复。未知 id 忽略（兼容旧档/改版）。"""
+	_unlocked.clear()
+	for id in arr:
+		if SKILLS.has(id):
+			_unlocked[id] = true
+	# always 技能无条件解锁
+	for id in SKILLS:
+		if SKILLS[id]["always"]:
+			_unlocked[id] = true
+
+
 func is_unlocked(skill_id: String) -> bool:
 	return _unlocked.get(skill_id, false)
 

@@ -132,6 +132,62 @@ func _init() -> void:
 		_check(ground_ok, "地面贯穿全图（贴图与碰撞一致的前提）",
 			   "地面没有铺满")
 
+	# ── 7. 精灵轮廓干净（无白边）──
+	#
+	# AI 素材抠图后，轮廓上会残留亮色像素（原始抗锯齿过渡色被量化成
+	# 接近白的灰）。实测清理前占比：BOSS 26.8%、玩家 18.7%、
+	# 苔团 15.2%、灯笼虫 11.6%、石守 7.1%。
+	# 在深色场景上非常明显，表现为"贴纸剪得不干净"。
+	var sprite_sets := [
+		["玩家", "res://art/characters/ori/frames/ori_idle_0.png"],
+		["苔团", "res://art/enemies/frames/mossling_idle_0.png"],
+		["灯笼虫", "res://art/enemies/frames/lanternbug_idle_0.png"],
+		["石守", "res://art/enemies/frames/stonepaw_idle_0.png"],
+		["BOSS", "res://art/boss/frames/warden_idle_0.png"],
+	]
+	for entry in sprite_sets:
+		var label: String = entry[0]
+		var path: String = entry[1]
+		if not ResourceLoader.exists(path):
+			continue
+		var tex2: Texture2D = load(path)
+		if tex2 == null:
+			continue
+		var img2: Image = tex2.get_image()
+		var w2 := img2.get_width()
+		var h2 := img2.get_height()
+		var edge_total := 0
+		var edge_bright := 0
+		for y in h2:
+			for x in w2:
+				var c2: Color = img2.get_pixel(x, y)
+				if c2.a < 0.5:
+					continue
+				# 四邻域有透明的，就是轮廓像素
+				var is_edge := false
+				for d in [Vector2i(1, 0), Vector2i(-1, 0),
+						  Vector2i(0, 1), Vector2i(0, -1)]:
+					var nx: int = x + d.x
+					var ny: int = y + d.y
+					if nx < 0 or ny < 0 or nx >= w2 or ny >= h2:
+						continue
+					if img2.get_pixel(nx, ny).a < 0.5:
+						is_edge = true
+						break
+				if not is_edge:
+					continue
+				edge_total += 1
+				# 白边判据：亮度高 + 低饱和（接近灰白）
+				var mx: float = maxf(maxf(c2.r, c2.g), c2.b) * 255.0
+				var mn: float = minf(minf(c2.r, c2.g), c2.b) * 255.0
+				if mx > 170.0 and (mx - mn) < 45.0:
+					edge_bright += 1
+		if edge_total > 0:
+			var ratio: float = float(edge_bright) / float(edge_total)
+			_check(ratio < 0.02,
+				   "%s 轮廓无白边（%.1f%%）" % [label, ratio * 100.0],
+				   "白边占比 %.1f%%，抠图不干净" % (ratio * 100.0))
+
 	_finish()
 
 

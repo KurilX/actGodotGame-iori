@@ -19,6 +19,9 @@
 
 import math
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clean_sprite_outline
 
 from PIL import Image
 
@@ -205,7 +208,10 @@ def main():
     for name, fn in BUILDERS.items():
         frames = fn(s)
         for i, f in enumerate(frames):
-            f.save(os.path.join(OUT, f"warden_{name}_{i}.png"))
+            _p = os.path.join(OUT, f"warden_{name}_{i}.png")
+            f.save(_p)
+            # BOSS 白边最严重（26.8% 的边缘像素是亮的），必须清理
+            clean_sprite_outline.clean_one(_p, outline_width=2)
         total += len(frames)
         print(f"  {name}: {len(frames)} 帧")
     print(f"共 {total} 帧 -> art/boss/frames/")

@@ -13,6 +13,9 @@
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clean_sprite_outline
 
 from PIL import Image
 
@@ -272,6 +275,10 @@ def main():
             for i, f in enumerate(frames):
                 path = os.path.join(OUT_DIR, f"{name}_{anim_name}_{i}.png")
                 f.save(path)
+                # 输出后立即清白边 + 重描 2px 轮廓。
+                # AI 素材抠图后在轮廓上残留亮像素（实测苔团 15%、石守 7%），
+                # 在深色背景上很明显。放在这里保证每次重跑都生效。
+                clean_sprite_outline.clean_one(path, outline_width=2)
             print(f"{name}/{anim_name}: {len(frames)} 帧")
     total = len([f for f in os.listdir(OUT_DIR) if f.endswith(".png")])
     print(f"共 {total} 帧 -> art/enemies/frames/")

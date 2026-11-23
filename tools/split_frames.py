@@ -13,6 +13,9 @@
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clean_sprite_outline
 
 from PIL import Image
 
@@ -53,6 +56,7 @@ def split(name, count):
         f = src.crop((i * FRAME, 0, (i + 1) * FRAME, src.height))
         p = os.path.join(OUT, f"{name}_{i}.png")
         f.save(p)
+        clean_sprite_outline.clean_one(p, outline_width=2)
         paths.append(p)
     return paths
 

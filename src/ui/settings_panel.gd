@@ -11,7 +11,7 @@ const GameFont := preload("res://src/ui/game_font.gd")
 
 signal closed
 signal volume_changed(value: float)
-signal export_save
+signal copy_code
 signal clear_save
 signal back_to_menu
 
@@ -49,7 +49,7 @@ func _ready() -> void:
 func _build_rows() -> void:
 	_rows = [
 		{"key": "volume", "label": "音量", "kind": "slider"},
-		{"key": "export", "label": "导出存档", "kind": "button"},
+		{"key": "copy", "label": "复制存档码", "kind": "button"},
 		{"key": "clear", "label": "清除存档", "kind": "button"},
 		{"key": "menu", "label": "返回主菜单", "kind": "button"},
 		{"key": "close", "label": "关闭", "kind": "button"},
@@ -155,9 +155,8 @@ func _activate(idx: int) -> void:
 	if idx < 0 or idx >= _rows.size():
 		return
 	match _rows[idx]["key"]:
-		"export":
-			export_save.emit()
-			set_message("已导出")
+		"copy":
+			copy_code.emit()
 		"clear":
 			clear_save.emit()
 			set_message("存档已清除")

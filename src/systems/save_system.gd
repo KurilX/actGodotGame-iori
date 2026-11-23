@@ -42,6 +42,9 @@ Godot 的 `JavaScriptBridge` 只在 Web 导出下存在。
 
 extends Node
 ## 存档管理器。挂在 bootstrap 上，全局唯一。
+##
+## 导出格式：**加密存档码**（一串可复制粘贴的文本，见 save_codec.gd），
+## 不再是 .json 文件 —— 移动端复制粘贴比下载文件顺手得多。
 
 signal saved
 signal loaded(success: bool, reason: String)
@@ -52,6 +55,7 @@ signal changed
 const KEY := "actgame.save.v1"
 const SAVE_VERSION := 1
 const DESKTOP_PATH := "user://actgame_save.json"
+const SaveCodec := preload("res://src/systems/save_codec.gd")
 
 # 当前内存中的存档数据
 var _data: Dictionary = {}
@@ -231,26 +235,47 @@ func clear() -> void:
 # ─────────────── 导出 / 导入 ───────────────
 
 func export_payload() -> String:
-	"""导出成可读的 JSON 文本（带缩进，方便玩家看和改）。"""
+	"""导出成**加密存档码**（一串可直接复制粘贴的文本）。
+
+	格式 `AG1.<base64>`，AES-256-CBC 加密 + SHA-256 完整性校验。
+	同样的串粘回去就能还原原始存档。
+	"""
 	if not _has_save:
 		return ""
-	return JSON.stringify(_data, "  ")
+	# 先序列化成紧凑 JSON（不要缩进 —— 缩进会让密文变长且没必要）
+	var json := JSON.stringify(_data)
+	return SaveCodec.encode(json)
 
 
 func export_filename() -> String:
 	var t := int(_data.get("saved_at", 0))
 	if t <= 0:
-		return "actgame_save.json"
+		return "actgame_save.txt"
 	var dt := Time.get_datetime_dict_from_unix_time(t)
-	return "actgame_save_%04d%02d%02d_%02d%02d.json" % [
+	return "actgame_save_%04d%02d%02d_%02d%02d.txt" % [
 		dt["year"], dt["month"], dt["day"], dt["hour"], dt["minute"]]
 
 
 func import_payload(text: String) -> bool:
-	"""导入存档。校验失败会 emit loaded(false, reason) 并返回 false。"""
-	var parsed = JSON.parse_string(text)
+	"""导入存档码。
+
+	流程：解码 → 解出 JSON → 校验 version/checksum → 写入。
+	任何一步失败都会 emit loaded(false, reason)，并给出**人话的原因**
+	（不要只说"失败"，玩家不知道是复制漏了还是码本身坏了）。
+	"""
+	var stripped := text.strip_edges()
+	# 兼容纯 JSON（旧格式 / 开发者手动贴）—— 但主路径是加密码
+	var json_text := stripped
+	if stripped.begins_with(SaveCodec.MAGIC) or not stripped.begins_with("{"):
+		var r: Dictionary = SaveCodec.decode(stripped)
+		if not r.get("ok", false):
+			loaded.emit(false, str(r.get("error", "存档码无法解码")))
+			return false
+		json_text = str(r.get("text", ""))
+
+	var parsed = JSON.parse_string(json_text)
 	if not (parsed is Dictionary):
-		loaded.emit(false, "不是有效的 JSON 对象")
+		loaded.emit(false, "存档内容不是有效的 JSON 对象")
 		return false
 	if int(parsed.get("version", 0)) != SAVE_VERSION:
 		loaded.emit(false, "存档版本不匹配（需要 v%d）" % SAVE_VERSION)

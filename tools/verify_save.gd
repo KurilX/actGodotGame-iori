@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 存档系统 + 主菜单 验证
 ##
 ## 运行：godot --headless --path . --script tools/verify_save.gd
@@ -77,21 +77,36 @@ func _init() -> void:
 	       str(d2.get("hearts")))
 
 	# ── 坏档必须被拒 ──
+	# 现在导出的是**加密存档码**，明文替换无效。
+	# 改为篡改密文中间一个字符（长度不变），验证 SHA-256 校验能拦住。
 	save.clear()
-	var tampered: String = exported.replace('"hearts": 3', '"hearts": 9')
+	var tampered: String = exported
+	if tampered.length() > 20:
+		var mid: int = tampered.length() / 2
+		var ch: String = tampered[mid]
+		var repl: String = "B" if ch != "B" else "C"
+		tampered = tampered.substr(0, mid) + repl + tampered.substr(mid + 1)
 	var bad: bool = save.import_payload(tampered)
-	_check(not bad, "19. 篡改过的存档被拒绝", "竟然导入成功")
+	_check(not bad, "19. 篡改过的存档码被拒绝", "竟然导入成功")
 	_check(not save.has_save(), "20. 拒绝后不产生存档", "出现了存档")
 
-	# 明显不是 JSON 的输入
-	var bad2: bool = save.import_payload("这不是json")
-	_check(not bad2, "21. 非 JSON 输入被拒绝", "竟然接受")
+	# 明显不是存档码的输入
+	var bad2: bool = save.import_payload("这不是存档码")
+	_check(not bad2, "21. 乱码输入被拒绝", "竟然接受")
 
-	# 版本号不对
+	# 合法明文 JSON 但版本号不对（走纯 JSON 兼容路径）
 	save.clear()
-	var wrong_ver: String = exported.replace('"version": 1', '"version": 99')
+	var wrong_ver: String = '{"version":99,"hearts":3,"max_hearts":5,"skills":["seam"],"boss_defeated":false,"player_pos":[0,0],"checksum":"x"}'
 	_check(not save.import_payload(wrong_ver),
 	       "22. 版本号不匹配被拒绝", "竟然接受")
+
+	# 漏掉 AG1. 前缀也应能导入（宽松处理复制残留）
+	save.clear()
+	var no_prefix: String = exported
+	if no_prefix.begins_with("AG1."):
+		no_prefix = no_prefix.substr(4)
+	_check(save.import_payload(no_prefix),
+	       "22b. 漏掉 AG1. 前缀也能导入", "失败了")
 
 	# ── 持久化：重新读取（模拟刷新页面）──
 	save.write_snapshot({
@@ -107,7 +122,8 @@ func _init() -> void:
 
 	# ── 导出文件名 ──
 	var fn: String = save.export_filename()
-	_check(fn.ends_with(".json"), "25. 导出文件名是 .json", fn)
+	# 存档码是纯文本，文件名用 .txt（不再是 .json）
+	_check(fn.ends_with(".txt"), "25. 导出文件名是 .txt", fn)
 	_check(fn.contains("actgame_save"), "26. 导出文件名有前缀", fn)
 
 	# ── 设置面板 ──

@@ -81,10 +81,11 @@ func _ready() -> void:
 	_menu.start_new_game.connect(_on_start_new)
 	_menu.continue_game.connect(_on_continue)
 	_menu.open_settings.connect(_on_open_settings)
-	_menu.export_save.connect(_on_export)
+	_menu.copy_code.connect(_on_copy_code)
+	_menu.import_code.connect(_on_import_code)
 	_menu.clear_save.connect(_on_clear)
 
-	_settings.export_save.connect(_on_export)
+	_settings.copy_code.connect(_on_copy_code)
 	_settings.clear_save.connect(_on_clear)
 	_settings.back_to_menu.connect(func() -> void:
 		if _mode == Mode.GAME:
@@ -232,37 +233,59 @@ func _on_open_settings() -> void:
 	_settings.open()
 
 
-func _on_export() -> void:
-	var text: String = save.export_payload()
-	if text == "":
+func _on_copy_code() -> void:
+	"""把加密存档码复制到剪贴板。"""
+	var code: String = save.export_payload()
+	if code == "":
 		_settings.set_message("没有可导出的存档")
+		if _menu != null and _menu.has_method("set_import_result"):
+			_menu.set_import_result(false, "没有可导出的存档")
 		return
-	# Web：用 blob 下载；桌面：写到 user://
+
+	var ok := _copy_to_clipboard(code)
+	var msg := ("存档码已复制（%d 字符），可粘贴保存" % code.length()) if ok \
+		else "复制失败，请手动保存"
+	_settings.set_message(msg)
+	if _menu != null and _menu.has_method("set_import_result"):
+		_menu.set_import_result(ok, msg)
+
+
+func _copy_to_clipboard(text: String) -> bool:
+	"""跨平台复制到剪贴板。"""
 	if OS.has_feature("web"):
-		var fname: String = save.export_filename()
-		# 转义成 JS 字符串字面量
-		var js_text := JSON.stringify(text)
-		var js_name := JSON.stringify(fname)
-		JavaScriptBridge.eval(
-			"(function(){try{" +
-			"var t=%s;var n=%s;" % [js_text, js_name] +
-			"var b=new Blob([t],{type:'application/json'});" +
-			"var u=URL.createObjectURL(b);" +
-			"var a=document.createElement('a');" +
-			"a.href=u;a.download=n;document.body.appendChild(a);" +
-			"a.click();setTimeout(function(){URL.revokeObjectURL(u);" +
-			"a.remove();},1500);" +
-			"}catch(e){}})()", true)
-		_settings.set_message("已下载存档文件")
+		# navigator.clipboard 需要安全上下文（https 或 localhost），
+		# 失败时退回 execCommand（老浏览器/非安全上下文）。
+		var js := JSON.stringify(text)
+		var r := str(JavaScriptBridge.eval(
+			"(function(){var t=%s;" % js +
+			"try{if(navigator.clipboard&&navigator.clipboard.writeText){" +
+			"navigator.clipboard.writeText(t);return '1';}}catch(e){}" +
+			"try{var a=document.createElement('textarea');a.value=t;" +
+			"a.style.position='fixed';a.style.opacity='0';" +
+			"document.body.appendChild(a);a.select();" +
+			"var ok=document.execCommand('copy');a.remove();" +
+			"return ok?'1':'0';}catch(e){return '0';}})()", true))
+		return r == "1"
+	DisplayServer.clipboard_set(text)
+	return true
+
+
+func _on_import_code(text: String) -> void:
+	"""导入存档码：解码 → 校验 → 写入 → 刷新菜单。
+
+	`import_payload` 是同步返回结果的，所以这里直接拿返回值判断，
+	不需要再去监听 loaded 信号（那样反而会重复提示）。
+	"""
+	var ok: bool = save.import_payload(text)
+	if ok:
+		_menu.refresh()
+		if _menu.has_method("set_import_result"):
+			_menu.set_import_result(true, "导入成功")
 	else:
-		var path: String = "user://" + save.export_filename()
-		var f := FileAccess.open(path, FileAccess.WRITE)
-		if f != null:
-			f.store_string(text)
-			f.close()
-			_settings.set_message("已导出到 " + path)
-		else:
-			_settings.set_message("导出失败")
+		# 具体原因由 save 内部 emit loaded(false, reason)，
+		# 这里只给一个简短的提示（详细原因写在 save 的日志里）
+		if _menu.has_method("set_import_result"):
+			_menu.set_import_result(false, "导入失败：存档码无效或已损坏")
 
 
 func _on_clear() -> void:

@@ -24,7 +24,8 @@ const GameFont := preload("res://src/ui/game_font.gd")
 signal start_new_game
 signal continue_game
 signal open_settings
-signal export_save
+signal copy_code          # 复制存档码到剪贴板
+signal import_code(text: String)   # 从输入框的存档码导入
 signal clear_save
 
 const C_BG := Color(0.03, 0.04, 0.09, 1.0)
@@ -55,7 +56,94 @@ func _ready() -> void:
 	offset_bottom = 0
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	set_process(true)
+	_build_import_box()
 	_rebuild()
+
+
+# ─────────────── 导入输入框 ───────────────
+#
+# 用 LineEdit 而不是自绘：存档码要能选中、粘贴、Ctrl+V，
+# 自绘输入框要自己实现光标/选区/剪贴板，不值得。
+
+var _import_box: LineEdit
+var _import_open := false
+var _import_msg := ""
+var _import_msg_t := 0.0
+var _import_ok := false
+
+
+func _build_import_box() -> void:
+	_import_box = LineEdit.new()
+	_import_box.name = "ImportBox"
+	_import_box.placeholder_text = "粘贴存档码（AG1.xxxxx）"
+	_import_box.visible = false
+	_import_box.max_length = 4096
+	_import_box.text_submitted.connect(func(_t: String) -> void:
+		_submit_import())
+	add_child(_import_box)
+
+
+func _toggle_import_box() -> void:
+	_import_open = not _import_open
+	_import_box.visible = _import_open
+	if _import_open:
+		# **必须在这里定位**，不能只在 _draw 里设。
+		# _draw 的调用时机不可靠（控件第一次显示时可能还没画），
+		# 结果输入框停在 (0,0) 跑到屏幕左上角（实测如此）。
+		_layout_import_box()
+		_import_box.grab_focus()
+		_import_box.text = ""
+		_import_msg = ""
+	else:
+		_import_box.release_focus()
+	queue_redraw()
+
+
+func _layout_import_box() -> void:
+	if _import_box == null:
+		return
+	var vs := get_viewport_rect().size
+	var rs := _secondary_rects(vs)
+	var bw: float = rs["copy"].size.x * 3.0 + 16.0
+	var bx := (vs.x - bw) * 0.5
+	# 放在**标题和按钮组之间**的空档里。
+	# 曾经试过"存档槽上方"，但那里正好是「设置」按钮的位置，
+	# 会把它压住（实测）。标题在 y≈0.17H、按钮组从 y≈0.36H 开始，
+	# 中间那段是空的。
+	# 按钮组下移了 26px，所以这里放在原按钮组顶部再往上一点
+	var total_h: float = 3.0 * (34.0 + 10.0) - 10.0
+	var by: float = vs.y * 0.50 - total_h * 0.5 - 16.0
+	_import_box.position = Vector2(bx, by)
+	_import_box.size = Vector2(bw, 24.0)
+
+
+func _submit_import() -> void:
+	var txt := _import_box.text.strip_edges()
+	if txt.is_empty():
+		_set_import_msg("存档码为空", false)
+		return
+	import_code.emit(txt)
+
+
+func set_import_result(ok: bool, msg: String) -> void:
+	_set_import_msg(msg, ok)
+	if ok:
+		_toggle_import_box()
+
+
+func _set_import_msg(msg: String, ok: bool) -> void:
+	_import_msg = msg
+	_import_ok = ok
+	_import_msg_t = 3.0
+	queue_redraw()
+
+
+func _input(event: InputEvent) -> void:
+	# Esc 关掉导入框（免得焦点困在里面）
+	if _import_open and event is InputEventKey and event.pressed \
+			and event.keycode == KEY_ESCAPE:
+		_toggle_import_box()
+		get_viewport().set_input_as_handled()
 
 
 func bind_save(save: Node) -> void:
@@ -86,6 +174,12 @@ func refresh() -> void:
 	_rebuild()
 
 
+func _notification(what: int) -> void:
+	# 窗口尺寸变了要重排输入框，否则它会停在旧位置
+	if what == NOTIFICATION_RESIZED and _import_open:
+		_layout_import_box()
+
+
 # ─────────────── 输入 ───────────────
 
 func _process(delta: float) -> void:
@@ -94,6 +188,10 @@ func _process(delta: float) -> void:
 		_flash[k] -= delta
 		if _flash[k] <= 0.0:
 			_flash.erase(k)
+	if _import_msg_t > 0.0:
+		_import_msg_t = maxf(_import_msg_t - delta, 0.0)
+		if _import_msg_t <= 0.0:
+			_import_msg = ""
 	queue_redraw()
 
 
@@ -113,7 +211,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_activate(_selected)
 				get_viewport().set_input_as_handled()
 			KEY_E:
-				export_save.emit()
+				copy_code.emit()
+				get_viewport().set_input_as_handled()
+			KEY_I:
+				_toggle_import_box()
 				get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion:
@@ -128,8 +229,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			# 导出/清除按钮
 			var hb := _hit_secondary(event.position)
-			if hb == "export":
-				export_save.emit()
+			if hb == "copy":
+				copy_code.emit()
+				get_viewport().set_input_as_handled()
+			elif hb == "import":
+				_toggle_import_box()
 				get_viewport().set_input_as_handled()
 			elif hb == "clear":
 				clear_save.emit()
@@ -171,7 +275,10 @@ func _activate(idx: int) -> void:
 
 func _btn_rect(i: int, vs: Vector2) -> Rect2:
 	var total := _items.size() * (BTN_H + BTN_GAP) - BTN_GAP
-	var y0 := vs.y * 0.50 - total * 0.5
+	# 导入框打开时整体下移，给它腾出空间 —— 菜单本身很紧凑，
+	# 没有天然的空档可以放输入框（试过几个位置都会压住按钮）。
+	var shift: float = 26.0 if _import_open else 0.0
+	var y0 := vs.y * 0.50 - total * 0.5 + shift
 	var x := (vs.x - BTN_W) * 0.5
 	return Rect2(x, y0 + i * (BTN_H + BTN_GAP), BTN_W, BTN_H)
 
@@ -188,12 +295,13 @@ func _secondary_rects(vs: Vector2) -> Dictionary:
 	var w := 62.0
 	var h := 20.0
 	var gap := 8.0
-	var total := w * 2 + gap
+	var total := w * 3 + gap * 2
 	var x0 := (vs.x - total) * 0.5
 	var y := vs.y - 54.0
 	return {
-		"export": Rect2(x0, y, w, h),
-		"clear": Rect2(x0 + w + gap, y, w, h),
+		"copy": Rect2(x0, y, w, h),
+		"import": Rect2(x0 + w + gap, y, w, h),
+		"clear": Rect2(x0 + (w + gap) * 2, y, w, h),
 	}
 
 
@@ -228,7 +336,7 @@ func _draw() -> void:
 	var tsz := 42
 	var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, tsz).x
 	var tx := (vs.x - tw) * 0.5
-	var ty := vs.y * 0.17
+	var ty := vs.y * (0.12 if _import_open else 0.17)
 	# 标题光晕：几圈同色描边
 	for off in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2),
 				Vector2(-2, -2), Vector2(2, 2), Vector2(-2, 2), Vector2(2, -2)]:
@@ -238,13 +346,14 @@ func _draw() -> void:
 	draw_string(font, Vector2(tx, ty), title,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, tsz, C_TITLE)
 
-	# 副标题
-	var sub := "ORI  ·  瓷面守夜人"
-	var ssz := 10
-	var sw := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ssz).x
-	draw_string(font, Vector2((vs.x - sw) * 0.5, ty + 16), sub,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, ssz,
-				Color(C_SUB.r, C_SUB.g, C_SUB.b, 0.85))
+	# 副标题。导入框打开时不画 —— 垂直空间不够，它会和输入框重叠。
+	if not _import_open:
+		var sub := "ORI  ·  瓷面守夜人"
+		var ssz := 10
+		var sw := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ssz).x
+		draw_string(font, Vector2((vs.x - sw) * 0.5, ty + 16), sub,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, ssz,
+					Color(C_SUB.r, C_SUB.g, C_SUB.b, 0.85))
 
 	# ── 按钮 ──
 	for i in _items.size():
@@ -254,7 +363,7 @@ func _draw() -> void:
 	_draw_secondary(font, vs)
 
 	# ── 底部提示 ──
-	var hint := "↑↓ 选择   Enter 确认   E 导出存档"
+	var hint := "↑↓ 选择   Enter 确认   E 复制存档码   I 导入"
 	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 	draw_string(font, Vector2((vs.x - hw) * 0.5, vs.y - 12), hint,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 9,
@@ -332,16 +441,31 @@ func _draw_secondary(font: Font, vs: Vector2) -> void:
 				lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
 				Color(C_DIM.r, C_DIM.g, C_DIM.b, 0.8))
 
-	for k in ["export", "clear"]:
+	# 三个按钮：复制存档码 / 导入 / 清除
+	# "导入"始终可用（没档的人也可能想导入别人的档）
+	var labels := {"copy": "复制存档码", "import": "导入", "clear": "清除"}
+	for k in ["copy", "import", "clear"]:
 		var r: Rect2 = rs[k]
-		var enabled := has if k == "export" else has
+		var enabled := has if k != "import" else true
 		var edge := Color(0.28, 0.34, 0.46) if enabled else Color(0.18, 0.21, 0.28)
 		var txt := Color(C_TEXT.r, C_TEXT.g, C_TEXT.b, 0.85) if enabled \
 			else Color(0.30, 0.34, 0.44)
 		draw_rect(r, Color(0.09, 0.11, 0.18, 0.9))
 		draw_rect(r, edge, false, 1.0)
-		var t := "导出" if k == "export" else "清除"
+		var t: String = labels[k]
 		var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 		draw_string(font, Vector2(r.position.x + (r.size.x - tw) * 0.5,
 								  r.position.y + 14), t,
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, txt)
+
+	# 导入框 + 结果消息
+	if _import_open:
+		_layout_import_box()
+
+	if _import_msg != "":
+		var mc := C_ACCENT if _import_ok else Color("#FF7A9C")
+		var mw := font.get_string_size(_import_msg, HORIZONTAL_ALIGNMENT_LEFT,
+									   -1, 9).x
+		var my: float = rs["copy"].position.y - (32.0 if _import_open else 6.0)
+		draw_string(font, Vector2((vs.x - mw) * 0.5, my), _import_msg,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, mc)

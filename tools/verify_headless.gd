@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## Godot headless 行为冒烟测试：验证重力、碰撞、左右移动、跳跃、Coyote
 ##
 ## 运行：godot --headless --path . --script tools/verify_headless.gd
@@ -51,8 +51,28 @@ func _init() -> void:
 	for i in 120:
 		await physics_frame
 	_check(player.is_on_floor(), "1. 落地", "玩家没落在地面上")
-	_check(player.global_position.y > y0, "2. 重力生效", "Y 没有增加（初始 y=%.1f，当前 %.1f）" % [y0, player.global_position.y])
-	var ground_y: float = player.global_position.y
+
+	# ── 2. 重力 ──
+	# **不能靠"出生后 y 是否增加"判断**：出生点（从关卡 JSON 读）
+	# 现在直接贴着地面，落地后 y 就不会再变，测不出重力。
+	# 改成主动抬到高空再放手，看它是否下落。
+	var ground_pos: Vector2 = player.global_position
+	player.global_position = ground_pos + Vector2(0, -120)
+	player.velocity = Vector2.ZERO
+	var y_air: float = player.global_position.y
+	for i in 30:
+		await physics_frame
+	_check(player.global_position.y > y_air + 10.0, "2. 重力生效",
+		   "从 y=%.1f 放开后只到 %.1f，没有下落" % [
+			   y_air, player.global_position.y])
+	# 落回地面
+	for i in 180:
+		await physics_frame
+	player.global_position = ground_pos
+	player.velocity = Vector2.ZERO
+	for i in 20:
+		await physics_frame
+
 
 	# ── 3. 右移 ──
 	var x0: float = player.global_position.x

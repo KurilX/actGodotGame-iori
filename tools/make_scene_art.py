@@ -24,6 +24,7 @@
 import math
 import os
 import random
+import sys
 
 from PIL import Image
 
@@ -398,27 +399,23 @@ def make_terrain():
     px = img.load()
     rng = random.Random(777)
 
-    # **必须与 room_greybox.gd 的 SOLIDS 完全一致** ——
-    # 否则贴图上的石台会和碰撞体错位，玩家会踩空或撞到看不见的墙。
-    solids = [
-        (0, 480, 2400, 60),      # 地面（整条）
-        # ① 移动教学：三级台阶
-        (120, 440, 72, 40),
-        (220, 400, 72, 40),
-        (320, 360, 72, 40),
-        (0, 250, 150, 20),
-        # ③ 重攻击教学：石守的高台
-        (930, 420, 130, 60),
-        # ⑤ 综合段
-        (1900, 440, 90, 40),
-        # 主关卡：BOSS 房
-        (2160, 288, 48, 192),
-        (2208, 420, 192, 60),
-        (1560, 0, 840, 12),
-        # 边界
-        (0, 0, 2400, 12),
-    ]
-
+    # ── 从关卡 JSON 读地形 ──
+    #
+    # 原来是手抄一份 SOLIDS 常量，必须和 room_greybox.gd 保持一致。
+    # 抄错就贴图和碰撞体错位（踩空 / 撞到看不见的墙），而且极难发现。
+    #
+    # 现在直接读 levels/tutorial.json（由 tools/build_level.py 从
+    # `.lvl` 字符画编译出来），**单一数据源**，不可能对不上。
+    import json
+    lvl_path = os.path.join(ROOT, "levels", "tutorial.json")
+    if not os.path.exists(lvl_path):
+        print("  关卡文件缺失，先跑 python tools/build_level.py",
+              file=sys.stderr)
+        return None
+    with open(lvl_path, encoding="utf-8") as _f:
+        _lvl = json.load(_f)
+    solids = [tuple(r) for r in _lvl.get("solids", [])]
+    print(f"  从 tutorial.json 读到 {len(solids)} 个地形矩形")
     for (x, y, w, h) in solids:
         _draw_solid(px, rng, x, y, w, h)
 
@@ -426,11 +423,44 @@ def make_terrain():
 
 
 def _draw_solid(px, rng, x, y, w, h):
+
+    # ── 0. 窄高的"墙"：走简化路径 ──
+    #
+    # 左墙/右墙是 20x520 的长条。按普通地形画会出两个问题：
+    #   · 四段明暗在竖直方向上重复，变成一条条横纹
+    #   · 岩层线横向铺开，在 20px 宽的墙上挤成一团
+    # 结果就是画面上一条很显眼的竖直条纹（实测截图可见）。
+    #
+    # 墙不需要岩层质感 —— 它大部分时间在画面边缘，只要安静的纯色。
+    # 判据要**严格**：只有真正的边界墙（宽 ≤ 2 格 = 40px）才走简化。
+    # 一开始写成 h > w*1.8，结果 4 格宽 6 格高的台阶也被判成墙，
+    # 变成一根没有草皮的暗色柱子（实测）。
+    if w <= 40 and h > w * 3:
+        for yy in range(y, y + h):
+            for xx in range(x, x + w):
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("stone_dk")
+        # 靠内的一侧加一条亮边，暗示体积
+        inner = x + w - 2 if x < ROOM_W // 2 else x
+        for yy in range(y, y + h):
+            for k in range(2):
+                xx = inner + k
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("stone")
+        return
+
     """画一块地形：岩层 + 明暗台阶 + 草皮 + 细节。"""
 
     # 草皮参数（实际绘制在函数末尾，这里只声明）
-    # 判断"顶部是否露天"：地面和台阶算露天，天花板/墙不算
-    is_surface = 20 < y < GROUND_Y + 40
+    #
+    # **判断"顶部是否露天"不能只看 y 坐标**：左墙是 20x520 的长条，
+    # y=20 也落在范围内，于是整面墙被当成"地面"，长出草皮 + 岩层线，
+    # 画面上表现为一条竖直条纹（实测）。
+    #
+    # 正确判据：**地形是"扁的"（宽 > 高）才可能是玩家站的地面**。
+    # 墙是"竖的"（高 >> 宽），不该长草。
+    _is_flat = w >= 60
+    is_surface = _is_flat and 20 < y < GROUND_Y + 40
     grass_h = rng.randint(4, 7)
 
     # ── 1. 基岩：**四段**明暗 ──

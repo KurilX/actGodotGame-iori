@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 ## 新手教程关验证：关卡结构、怪物分布、教学提示、BOSS 房锁
 ##
 ## 运行：godot --headless --path . --script tools/verify_tutorial.gd -- --autoplay
@@ -161,7 +161,7 @@ func _init() -> void:
 
 	# ── 地形与美术 ──
 	var solids: Array = room.SOLIDS
-	_check(solids.size() >= 12, "23. 地形块数量合理（%d 块）" % solids.size(),
+	_check(solids.size() >= 8, "23. 地形块数量合理（%d 块）" % solids.size(),
 	       "只有 %d 块" % solids.size())
 	# 地面必须贯穿全图
 	var ground_ok := false

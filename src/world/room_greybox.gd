@@ -1,4 +1,4 @@
-extends Node2D
+﻿extends Node2D
 ## 灰盒测试房：手动搭建静态碰撞体 + 单向平台
 ##
 ## 目的：W1 阶段排除 TileSet 配置的干扰，先把「跑跳砍」手感调出来。
@@ -23,80 +23,81 @@ var boss: Node2D = null
 #   2. 横版动作里"走过去"本身就有连续感
 #   3. 存档只需记一个坐标，不用记"在哪个场景"
 # 以后要拆时，把两段的 SOLIDS 各切一半、加个 transition 节点即可。
-const ROOM_W := 2400
-const ROOM_H := 540
+var ROOM_W := 2400
+var ROOM_H := 540
 
 # 地面顶部 y 坐标（与 SOLIDS 里地面矩形一致）。
 # 植被都种在这条线上。
 const GROUND_Y_FOR_DECO := 480.0
 
 # 段边界（世界坐标 x）
-const TUTORIAL_END := 1560.0
-const BOSS_ZONE_START := 1560.0
+var TUTORIAL_END := 1560.0
+var BOSS_ZONE_START := 1560.0
 
-# 实心地形矩形：[x, y, w, h]（游戏像素，y 向下）
-const SOLIDS := [
-	# ═══════════ 地面（整条，贯穿全图）═══════════
-	[0, 480, 2400, 60],
-	# ═══════════ ① 移动教学（x 0~500）═══════════
-	#
-	# 三级台阶：每级抬高 40px，横向错开约 88px。
-	# 这个间距略小于跳跃极限（实测约 58px），新手一次就能上去。
-	#
-	# **必须从地面长上去**：每块的高度都延伸到 y=480 的地面，
-	# 形成实心阶梯。原来做成三块悬空 72x40 的小方块，
-	# 观感是"意义不明的楼梯"—— 玩家分不清那是可跳的台阶还是装饰。
-	[104, 440, 88, 40],      # 第 1 级：顶面 y=440
-	[192, 400, 88, 80],      # 第 2 级：顶面 y=400，实心到地面
-	[280, 360, 88, 120],     # 第 3 级：顶面 y=360，实心到地面
-	# 一层地板（教"上跳穿单向平台"）
-	[0, 250, 150, 20],
+# ── 关卡数据：从 levels/tutorial.json 读取 ──
+#
+# 原来 SOLIDS / ONE_WAY / 敌人位置全部硬编码在这个脚本里，
+# 改一个台阶要在三处同步（房间脚本、美术脚本 solids、单向平台数组），
+# 改完还看不出地形长什么样。
+#
+# 现在关卡是 `levels/tutorial.lvl`（一张字符画），
+# 由 tools/build_level.py 编译成 tutorial.json，本脚本只负责读。
+#
+# 修改关卡的正确流程：
+#   1. 编辑 levels/tutorial.lvl（字符画，形状即地形）
+#   2. python tools/build_level.py       ← 编译 + 校验
+#   3. python tools/make_scene_art.py    ← 重新生成地形贴图
+#   4. godot --headless --path . --import
+const LEVEL_PATH := "res://levels/tutorial.json"
 
-	# ═══════════ ② 轻攻击教学（x 500~900）═══════════
-	# 平地，只放一块单向平台做可选练习
+# 下面这些在 _load_level() 里填充，保持和原来同名，
+# 这样 _build_solids() 等函数不用改。
+var SOLIDS: Array = []
+var ONE_WAY: Array = []
+var SPAWN := Vector2(80, 440)
 
-	# ═══════════ ③ 重攻击教学（x 900~1400）═══════════
-	# 石守站的高台（60px 高 = 玩家身高 48 + 一点余量，跳上去正好能打）
-	[1120, 420, 130, 60],
 
-	# ═══════════ ④ 闪避教学（x 1400~1900）═══════════
-	# 刻意留空：这段是开阔地，两只苔团从两侧夹击
+func _load_level() -> bool:
+	var f := FileAccess.open(LEVEL_PATH, FileAccess.READ)
+	if f == null:
+		printerr("关卡文件缺失：" + LEVEL_PATH +
+				 "（先跑 python tools/build_level.py）")
+		return false
+	var txt := f.get_as_text()
+	f.close()
+	var data = JSON.parse_string(txt)
+	if not (data is Dictionary):
+		printerr("关卡 JSON 解析失败：" + LEVEL_PATH)
+		return false
 
-	# ═══════════ ⑤ 综合（x 1900~2400）═══════════
-	# 一小段抬高的地形，制造高低差让三种敌人各显其能
-	[1900, 440, 90, 40],
+	# 转成 [x, y, w, h] 数组形式（和原来的常量格式一致）
+	SOLIDS = []
+	for r in data.get("solids", []):
+		SOLIDS.append([int(r[0]), int(r[1]), int(r[2]), int(r[3])])
+	ONE_WAY = []
+	for r in data.get("one_way", []):
+		ONE_WAY.append([int(r[0]), int(r[1]), int(r[2])])
 
-	# ═══════════ 主关卡：BOSS 房（x 1560~2400）═══════════
-	# 左侧塔（和原来一样，作为视觉锚点）
-	[2160, 288, 48, 192],
-	[2208, 420, 192, 60],
-	# BOSS 房的天花板压低一点，形成压迫感
-	[1560, 0, 840, 12],
+	ROOM_W = int(data.get("width", 2400))
+	ROOM_H = int(data.get("height", 540))
+	TUTORIAL_END = float(data.get("tutorial_end_x", 1560))
+	BOSS_ZONE_START = TUTORIAL_END
+	# SPAWN 从实体表里取
+	for ent in data.get("entities", []):
+		if str(ent.get("kind", "")) == "spawn_player":
+			SPAWN = Vector2(float(ent["x"]), float(ent["y"]))
 
-	# ═══════════ 边界 ═══════════
-	[0, 0, 2400, 12],          # 天花板（全图）
-	[-12, 0, 12, 540],         # 左墙
-	[2400, 0, 12, 540],        # 右墙
-]
+	return true
 
-# 单向平台：[x, y, w] —— 可以从下方跳上去
-const ONE_WAY := [
-	# ① 移动教学
-	[200, 300, 84],
-	# ② 轻攻击教学（可选上去）
-	[600, 320, 96],
-	[560, 200, 100],
-	# ③ 重攻击教学（高台上方，跳上去打完可以站这）
-	[980, 260, 80],
-	# ⑤ 综合段
-	[2020, 260, 120],
-]
 
-# 出生点：教程关起点，地板上方一点（落地有个轻微下坠，手感更自然）
-const SPAWN := Vector2(80, 440)
 
 
 func _ready() -> void:
+	# **必须先加载关卡**：后面的美术尺寸、碰撞体、植被分布、
+	# 出生点都依赖 _load_level() 填好的数据。
+	if not _load_level():
+		printerr("关卡加载失败，使用空地图（玩家会掉下去）")
+
 	_build_visuals()
 	_build_solids()
 	_build_wind_life()

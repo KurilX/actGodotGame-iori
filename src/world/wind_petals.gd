@@ -1,4 +1,4 @@
-"""飘落的花瓣：被风吹过场景的粒子。
+﻿"""飘落的花瓣：被风吹过场景的粒子。
 
 ## 为什么需要这个
 
@@ -30,9 +30,14 @@ extends Node2D
 @export var area_right := 2600.0
 @export var area_top := 180.0
 @export var area_bottom := 500.0
+# 是否画描边（花瓣/落叶画，尘絮不画）
+@export var outline := true
 
 const WIND_X := -26.0         # 风速（向左）
 const SWAY := 9.0             # 横向摇摆幅度
+
+# 描边：和角色/敌人/草丛同一个墨色
+const INK := Color("#12142A")
 
 const C_PETAL := Color("#FFB8D0")
 const C_PETAL_DK := Color("#D98BA8")
@@ -102,9 +107,14 @@ func _draw() -> void:
 				# 花瓣：2~3 px 的小点，偶尔变暗模拟翻转
 				var flip: bool = int(_t * 3.0 + it["sway_ph"]) % 2 == 0
 				var c := C_PETAL if flip else C_PETAL_DK
-				draw_rect(Rect2(x, y, sz, maxi(1, sz - 1)), c)
+				var w2: float = float(sz)
+				var h2: float = float(maxi(1, sz - 1))
+				# **不描边**：花瓣只有 2~3px，外扩 1px 深色会让
+				# 描边面积超过本体 —— 实测看起来是一个个黑色小方块，
+				# 完全不像花瓣。这种尺寸靠自身明度区分就够了。
+				draw_rect(Rect2(x, y, w2, h2), c)
 			"leaf":
-				# 落叶：斜线状，宽度随翻转变化
+				# 落叶：斜线状。同样不描边（只有 1~2px 宽）
 				var flip2: bool = int(_t * 2.2 + it["sway_ph"]) % 2 == 0
 				var c2 := C_LEAF if flip2 else C_LEAF_DK
 				if flip2:

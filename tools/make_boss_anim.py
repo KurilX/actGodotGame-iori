@@ -210,8 +210,13 @@ def main():
         for i, f in enumerate(frames):
             _p = os.path.join(OUT, f"warden_{name}_{i}.png")
             f.save(_p)
-            # BOSS 白边最严重（26.8% 的边缘像素是亮的），必须清理
-            clean_sprite_outline.clean_one(_p, outline_width=2)
+            # BOSS 白边最严重（26.8% 的边缘像素是亮的），必须清理。
+            #
+            # **描边 3px 而不是 2px**：BOSS 体型 96px，是玩家的 2 倍。
+            # 同样的 2px 描边在它身上只占 2.1%（玩家占 4.2%），
+            # 视觉重量只有玩家一半，和"压迫感"的定位矛盾。
+            # 按比例本该 4px，但 4px 会把盔甲细节吃掉，3px 是平衡点。
+            clean_sprite_outline.clean_one(_p, outline_width=3)
         total += len(frames)
         print(f"  {name}: {len(frames)} 帧")
     print(f"共 {total} 帧 -> art/boss/frames/")

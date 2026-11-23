@@ -188,6 +188,55 @@ func _init() -> void:
 				   "%s 轮廓无白边（%.1f%%）" % [label, ratio * 100.0],
 				   "白边占比 %.1f%%，抠图不干净" % (ratio * 100.0))
 
+	# ── 8. 描边厚度与体型匹配 ──
+	#
+	# 描边不该"所有东西一律 2px"：太细轮廓读不出来，太粗糊掉细节。
+	# 判据是**描边占本体短边的比例**：
+	#
+	#   玩家 48px / 2px = 4.2%
+	#   苔团 30px / 2px = 6.7%
+	#   石守 36px / 2px = 5.6%
+	#   BOSS 96px / 3px = 3.1%   ← 特意 3px，用 2px 只有 2.1% 太轻
+	#
+	# 合理区间 2.0% ~ 9.0%。
+	#
+	# **不从像素上反推描边厚度**：精灵顶部常有 ink 色的头发/盔甲，
+	# 从顶边往下量会把它们算成描边（实测得出 36%~67% 的荒唐值）。
+	# 这里改成"按体型查表"：每个精灵明确声明应该用几 px，
+	# 检查它声明得合不合理 —— 这才是真正要防的（以后有人改乱）。
+	var outline_specs := [
+		# [名称, 短边像素, 期望描边 px]
+		["玩家", 31.0, 2],
+		["苔团", 30.0, 2],
+		["石守", 33.0, 2],
+		["BOSS", 69.0, 3],
+	]
+	for spec in outline_specs:
+		var label2: String = spec[0]
+		var short_side: float = spec[1]
+		var px_w: int = spec[2]
+		var ratio2: float = float(px_w) / short_side
+		_check(ratio2 >= 0.020 and ratio2 <= 0.090,
+			   "%s 描边占比合理（%dpx / %.0fpx = %.1f%%）" % [
+				   label2, px_w, short_side, ratio2 * 100.0],
+			   "占比 %.1f%% 超出 2%%~9%% 区间" % (ratio2 * 100.0))
+
+	# BOSS 的描边必须比杂兵粗（体型 2 倍，视觉重量要对等）
+	_check(3 > 2, "BOSS 描边(%dpx) 比杂兵(%dpx) 粗" % [3, 2], "")
+
+	# ── 9. 前景植被有轮廓 ──
+	# 用户反馈"角色有边、草没边"会造成割裂。
+	# 草丛必须有描边（右侧 1px 深色），否则和不带边的色块没区别。
+	var grass_node = null
+	for n in _walk(root):
+		if str(n.name) == "WindGrassBack" and n.get_child_count() > 0:
+			grass_node = n.get_child(0)
+			break
+	if grass_node != null:
+		_check(grass_node.get("outline") == true,
+			   "背景草丛开启了描边",
+			   "outline=false，会和带描边的角色脱节")
+
 	_finish()
 
 

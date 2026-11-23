@@ -1,4 +1,4 @@
-"""风吹植被：会随风摇摆的草、花、芦苇、树。
+﻿"""风吹植被：会随风摇摆的草、花、芦苇、树。
 
 ## 为什么不用 SpriteFrames 逐帧画
 
@@ -21,11 +21,18 @@
 
 extends Node2D
 
+# 描边色：和角色/敌人/地形用的是同一个墨色（docs/02 规范里的 01 号色）。
+# 禁用纯黑 —— 纯黑会让画面死板。
+const INK := Color("#12142A")
+
 # ── 风参数 ──
 @export var wind_freq := 1.1          # 主摆动频率
 @export var wind_amp := 3.2           # 顶端最大偏移（像素）
 @export var wind_speed := 34.0        # 风向传播速度（越大波越快）
 @export var bend_bias := 0.55         # 恒定弯曲（风一直往一边吹）
+# 是否画描边。默认开 —— 场景里所有前景植被都要有轮廓，
+# 否则和带描边的角色摆在一起会显得"草是色块、角色是卡通"。
+@export var outline := true
 
 # 草叶定义：每项 [x偏移, 高度, 颜色, 粗细]
 var blades: Array = []
@@ -67,6 +74,18 @@ func _draw_blade(x: float, h: float, w: float, col: Color, bend: float) -> void:
 
 	分 3 段折线，弯曲量按高度平方分布（根部不动、越往尖越弯），
 	这样看起来才像"整根被压弯"而不是"顶端平移"。
+
+	## 描边
+
+	草叶只有 1~2px 宽。**左右各加 1px 深色底是错的** ——
+	实测那样草会变成"3px 里 2px 是黑的"粗竖条，整片草地看起来
+	像一堆黑色栅栏，比不描边还难看。
+
+	正确做法：只在**一侧**加 1px 深色（背光侧，即右侧），
+	模拟"光从左上来"的边缘阴影。这样：
+	  · 草仍然纤细（总宽 2px）
+	  · 有清晰的边缘分界，和带描边的角色摆在一起不脱节
+	  · 符合整张图统一的光源方向（左上）
 	"""
 	var segs := 3
 	var prev := Vector2(x, 0)
@@ -83,10 +102,14 @@ func _draw_blade(x: float, h: float, w: float, col: Color, bend: float) -> void:
 		# 粗细：用**矩形**画，而不是叠多条线。
 		# 叠线会有 1px 缝隙（硬边像素风里很显眼），矩形是实心的。
 		var thick: int = maxi(1, int(round(w * (1.0 - t * 0.45))))
-		var left := roundf(minf(prev.x, p.x)) if false else roundf(p.x)
-		draw_rect(Rect2(roundf(p.x), roundf(minf(prev.y, p.y)),
-						thick, roundf(absf(p.y - prev.y)) + 1.0),
-				  col)
+		var ry := roundf(minf(prev.y, p.y))
+		var rh := roundf(absf(p.y - prev.y)) + 1.0
+
+		if outline:
+			# 只在右侧 1px 加深色（背光侧）
+			draw_rect(Rect2(roundf(p.x) + float(thick), ry, 1.0, rh), INK)
+
+		draw_rect(Rect2(roundf(p.x), ry, thick, rh), col)
 		prev = p
 
 

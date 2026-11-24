@@ -447,7 +447,7 @@ def make_terrain():
     print(f"  从 tutorial.json 读到 {len(solids)} 个地形矩形，"
           f"{len(one_ways)} 段单向平台")
     for (x, y, w, h) in solids:
-        _draw_solid(px, rng, x, y, w, h)
+        _draw_solid(px, rng, x, y, w, h, solids)
 
     # 单向平台。**之前完全没画**：ONE_WAY 只在游戏里生成了碰撞体，
     # 贴图上是空的 —— 玩家会踩到一片看起来不存在的地面。
@@ -457,7 +457,7 @@ def make_terrain():
     return img
 
 
-def _draw_solid(px, rng, x, y, w, h):
+def _draw_solid(px, rng, x, y, w, h, solids):
 
     # ── 0. 窄高的"墙"：走简化路径 ──
     #
@@ -506,36 +506,71 @@ def _draw_solid(px, rng, x, y, w, h):
     top_zone = max(2, int(h * 0.30))
     bot_zone = max(2, int(h * 0.28))
 
-    for yy in range(y, y + h):
-        rel = (yy - y) / max(1, h)
-        if rel < 0.10:
-            col = hx("stone_hi")
-        elif rel < 0.62:
-            col = hx("stone")
-        elif rel < 0.86:
-            col = hx("stone_dk")
+    # **明暗必须按世界 y 算，不能按每块地形的相对高度算。**
+    #
+    # 原来用 rel = (yy - y) / h，意思是"这块地形从上往下 30% 是亮部"。
+    # 问题：相邻两块地形高度不同（台阶 h=100，地面 h=60），
+    # 同一个世界 y 在不同块里会落在不同的明暗段 ——
+    # 三级台阶的每一级交界处都有色阶跳变，看起来像"拼起来的分块"。
+    #
+    # 改成以地面顶（GROUND_Y）为锚点的**绝对深度**：
+    # 不管这块地形多高，同一世界 y 永远是同一个明暗。
+    def _strata_color(yy):
+        depth = yy - GROUND_Y      # 0 = 地面顶，向下为正
+        if depth < 0:
+            # 高于地面的地形（台阶/高台）：按离地面越远越暗，
+            # 但只暗两档，保持"受光的高台"感觉
+            if depth > -12:
+                return hx("stone_hi")
+            elif depth > -40:
+                return hx("stone")
+            else:
+                return hx("stone_dk")
+        # 地面以下：四段深度
+        if depth < 6:
+            return hx("stone_hi")
+        elif depth < 34:
+            return hx("stone")
+        elif depth < 50:
+            return hx("stone_dk")
         else:
-            col = hx("ink")
+            return hx("ink")
+
+    for yy in range(y, y + h):
+        col = _strata_color(yy)
         for xx in range(x, x + w):
             px[xx, yy] = col
 
     # ── 2. 岩层线：水平层理，错开半块 ──
-    layer_y = y + top_zone + rng.randint(0, 6)
-    while layer_y < y + h - 4:
+    # **岩层线也必须用全局基准**：从地面顶往下每 16px 一条，
+    # 每个地形块只画落在自己范围内的那些线。
+    # 原来从 y + top_zone + rng 起步，每块各错开一次，
+    # 相邻块的层理在交界处完全对不上。
+    layer_y = GROUND_Y + 8
+    while layer_y < ROOM_H:
+        if not (y <= layer_y < y + h - 4):
+            layer_y += 16
+            continue
         off = rng.randint(0, 14)
         # 层理：**2px 暗线 + 1px 亮线**。对比要够 —— 第一版只画 1px、
         # 概率 0.82，在 480px 宽的地面上几乎看不见，截图里地板是一块纯灰。
         for xx in range(x + off, x + w):
             if xx < 0 or xx >= ROOM_W:
                 continue
-            if rng.random() < 0.90:
+            # **岩层线要断续**，不能整条拉通。
+            # 整条连续会变成等距横纹，像"斑马线"而不是沉积岩。
+            # 用一个低频正弦当"密度波"，两端稀、中间密，
+            # 再叠随机，形成自然的断续纹理。
+            import math as _m
+            wave = 0.5 + 0.5 * _m.sin(xx / 47.0 + layer_y * 0.37)
+            if rng.random() < 0.90 * (0.45 + 0.55 * wave):
                 px[xx, layer_y] = hx("stone_dk")
                 if layer_y + 1 < y + h:
                     px[xx, layer_y + 1] = hx("stone_dk")
             # 层理下方 1px 高光：让每层看起来有厚度、上面受光
             if rng.random() < 0.55 and layer_y + 2 < y + h:
                 px[xx, layer_y + 2] = hx("stone_hi")
-        layer_y += rng.randint(12, 22)
+        layer_y += 16
 
 
     # ── 4. 顶面受光边（非草皮的地块，比如天花板/墙）──
@@ -544,14 +579,31 @@ def _draw_solid(px, rng, x, y, w, h):
             px[xx, y] = hx("stone_hi")
 
     # ── 5. 外轮廓描边（不是纯黑，用墨色）──
+    #
+    # **只在"真正暴露"的边上描边**。
+    #
+    # 原来无条件给四条边都描，相邻地块各自描一次，
+    # 拼在一起就成了一道双线接缝 —— 实测三级台阶的每一级交界
+    # 都有一条 (18,20,42) 的墨线，看起来像"拼起来的分块"，
+    # 而不是一整块地形。
+    #
+    # 判据：该边如果被另一块地形覆盖，就是内部接缝，不描。
+    def _covered(cx, cy):
+        for (ox, oy, ow, oh) in solids:
+            if ox <= cx < ox + ow and oy <= cy < oy + oh:
+                return True
+        return False
+
     for xx in range(x, x + w):
         for yy in (y - 1, y + h):
             if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                px[xx, yy] = hx("ink")
+                if not _covered(xx, yy):
+                    px[xx, yy] = hx("ink")
     for yy in range(y, y + h):
         for xx in (x - 1, x + w):
             if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                px[xx, yy] = hx("ink")
+                if not _covered(xx, yy):
+                    px[xx, yy] = hx("ink")
 
     # ── 6. 碎石与苔藓斑 ──
     n_pebbles = max(1, (w * h) // 900)

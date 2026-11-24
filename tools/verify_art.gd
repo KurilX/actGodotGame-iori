@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 ## 场景美术规范验证：调色板约束、动态植被、风吹动画
 ##
 ## 运行：godot --headless --path . --script tools/verify_art.gd -- --autoplay
@@ -302,6 +302,46 @@ func _init() -> void:
 						break
 			_check(has_steps, "着色器内含色阶量化参数",
 				   "缺 color_steps uniform")
+	# ── 12. 地形接缝：相邻地块之间不能有色阶断层 ──
+	#
+	# **这条是为一个真实观感问题补的**：每块地形原来按自身高度
+	# 算明暗（rel = (yy-y)/h），相邻两块高度不同，同一世界 y
+	# 落在不同明暗段 —— 三级台阶每级交界都有色阶跳变，
+	# 看起来像"拼起来的分块"。改成按世界 y 算绝对深度后消失。
+	#
+	# 判据不能看"相邻像素明度差"（岩层纹理本身就有明暗），
+	# 要看**同一 y 行上，跨块的主色是否一致**：
+	# 取若干个 y，统计该行出现次数最多的颜色（主色），
+	# 然后检查这个主色在该行的占比 —— 断层的行主色占比会很低。
+	var ttex: Texture2D = load("res://art/scene/terrain.png")
+	if ttex != null:
+		var timg: Image = ttex.get_image()
+		var bad_rows := 0
+		var checked := 0
+		for ty in [472, 492, 512]:
+			var tally := {}
+			var total := 0
+			for tx in range(20, 2380, 3):
+				var c: Color = timg.get_pixel(tx, ty)
+				if c.a < 0.5:
+					continue
+				var key := c.to_rgba32()
+				tally[key] = int(tally.get(key, 0)) + 1
+				total += 1
+			if total < 40:
+				continue
+			checked += 1
+			var best := 0
+			for k in tally:
+				best = maxi(best, int(tally[k]))
+			var share := float(best) / float(total)
+			# 正常情况主色应占大多数（岩层纹理是少部分）
+			if share < 0.55:
+				bad_rows += 1
+		if checked > 0:
+			_check(bad_rows == 0,
+				   "地形横向主色一致（%d/%d 行通过）" % [checked - bad_rows, checked],
+				   "有 %d 行主色占比 < 55%%，相邻地块明暗没对齐" % bad_rows)
 
 	_finish()
 

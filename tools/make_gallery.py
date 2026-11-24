@@ -43,6 +43,9 @@ GROUPS = [
      ["p1_", "p2_", "p3_", "p4_", "p5_", "c1_", "c2_", "c3_"]),
     ("参考地图（HK）", "空洞骑士官方区域地图剪影", ["docs/refs"],
      ["hk_"]),
+    ("AI 生图与修正", "AI 生成 → 28 色量化 → 缩像素 → 可平铺",
+     ["docs/refs/ai", "art/ai_tiles", "art/screenshots"],
+     ["ai_terrain", "ai_pixel", "ai_compare", "ai_zoom"]),
     ("原型与纹理", "程序化生成的贴图", ["art/scene"],
      ["proto_terrain", "terrain", "deco", "sky"]),
 ]

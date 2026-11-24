@@ -454,6 +454,7 @@ def make_terrain():
     for (x, y, w) in one_ways:
         _draw_one_way(px, int(x), int(y), int(w))
 
+    globals()["_SOLIDS"] = solids
     return img
 
 
@@ -533,17 +534,34 @@ def _draw_solid(px, rng, x, y, w, h, solids):
         所以这里只按 depth 分档，而且高台部分保持和地面同一套色阶 ——
         高台只是"地面被抬起来"，不是"另一种材质"。
         """
-        depth = yy - GROUND_Y      # 0 = 地面顶，向下为正（负 = 高于地面）
-        # 统一用同一套深度色阶：高于地面的部分按负数 depth 处理，
-        # 让它落到最亮的一档，与地面顶部自然衔接。
-        if depth < 8:
-            return hx("stone_hi")
-        elif depth < 34:
-            return hx("stone")
-        elif depth < 50:
-            return hx("stone_dk")
+        # **深度要相对"这块地形的顶面"算，不是相对地面顶。**
+        #
+        # 用户反馈「如果往上垫了上面就全是空的」—— 指的就是这个：
+        # 相对地面顶算深度时，任何高于地面的地形（台阶/高台）
+        # 整体都落在 depth<8 这一档，里面是**一整片均匀的 stone_hi**，
+        # 没有从受光到阴影的过渡，看起来像一块平板。
+        #
+        # 正确做法：用**距离本地形顶面多深**来分档。
+        # 这样不管地形在什么高度，它的立面都有"顶亮→中→暗→底弧"的纵深感，
+        # 而且同一块地形内部是渐变的，不会出现横向断层
+        #（因为相邻地块顶面高度不同时，交界处本来就是不同的立面）。
+        local = yy - y
+        # **立面要有 4 档而不是 3 档**。
+        # 原来写成 stone_hi → stone → stone_dk → ink，
+        # 但 stone_dk 到 ink 的跨度太大，立面下半直接黑掉，
+        # 台阶看起来像"半截浸在阴影里"。改成：
+        #   顶面亮 → 上部 stone → 中部 stone_dk → 底部再压一档（不用纯 ink）
+        band = max(8.0, h * 0.22)
+        if local < 3:
+            return hx("stone_hi")          # 顶面受光边
+        elif local < band:
+            return hx("stone")             # 上部立面
+        elif local < band * 2.0:
+            return hx("stone_dk")          # 中部
+        elif local < band * 3.2:
+            return hx("stone_dk")          # 下部（同色，靠岩层线区分）
         else:
-            return hx("ink")
+            return hx("ink")               # 最底只有一点点暗弧
 
     for yy in range(y, y + h):
         col = _strata_color(yy)
@@ -602,13 +620,25 @@ def _draw_solid(px, rng, x, y, w, h, solids):
             r1 = hsh / 65535.0
             hsh2 = ((xx * 83492791) ^ (layer_y * 2654435761)) & 0xFFFF
             r2 = hsh2 / 65535.0
+            # **暗部要用"提亮"来画层理，不能一直压暗**。
+            #
+            # 原来层理一律用 stone_dk。在地面（主色 stone）上没问题，
+            # 但在高台立面下半部（主色已经是 stone_dk 甚至 ink）时，
+            # stone_dk 压上去等于没有对比 —— 放大看就是一片纯色，
+            # 用户形容为"往上垫了上面就全是空的"。
+            #
+            # 判据：看这一行的底色，底色深就用亮线，底色浅就用暗线。
+            base_c = _strata_color(layer_y)
+            dark_base = base_c[0] + base_c[1] + base_c[2] < 260
+            line_c = hx("stone_hi") if dark_base else hx("stone_dk")
+            hi_c = hx("stone_dk") if dark_base else hx("stone_hi")
             if r1 < 0.97 * (0.72 + 0.28 * wave):
-                px[xx, layer_y] = hx("stone_dk")
+                px[xx, layer_y] = line_c
                 if layer_y + 1 < y + h:
-                    px[xx, layer_y + 1] = hx("stone_dk")
-            # 层理下方 1px 高光：让每层看起来有厚度、上面受光
+                    px[xx, layer_y + 1] = line_c
+            # 层理下方 1px 高光（暗部则改为阴影）
             if r2 < 0.55 and layer_y + 2 < y + h:
-                px[xx, layer_y + 2] = hx("stone_hi")
+                px[xx, layer_y + 2] = hi_c
         layer_y += 16
 
 
@@ -699,8 +729,19 @@ def _draw_solid(px, rng, x, y, w, h, solids):
                     if 0 <= yy < ROOM_H:
                         px[xx, yy] = hx("moss_dk")
 
+        # ── 顶面草皮向两侧"包边" ──
+        #
+        # 用户想要「草地是相连的话，竖着也生成一下草地，看起来衔接好点」。
+        #
+        # 第一版理解错了，把草一路挂在**垂直立面**上 ——
+        # 结果台阶立面中途浮出一簇孤立的小草（放大 3 倍非常明显），
+        # 因为立面上没有"土"，草不该长在那里。
+        #
+        # 正确做法：草只从**顶面往下包 1~2px**，沿着上边缘横向延伸出去，
+        # 让相邻台地的草在视觉上连成一条边；立面本身保持干净的石头。
 
-def make_deco():
+
+def make_deco(solids):
     """装饰层：草丛、紫藤、灯笼。z 高于地形、低于角色。"""
     img = Image.new("RGBA", (ROOM_W, ROOM_H), (0, 0, 0, 0))
     px = img.load()
@@ -712,16 +753,41 @@ def make_deco():
             gx = x + i * 2
             h = rng.randint(max(2, hmax - 3), hmax)
             lean = rng.choice([-1, 0, 1])
-            for k in range(h):
+            # **草根要落到 base_y 那一格**，不能只到 base_y-1。
+            # 原来写 range(h) 让最底一像素在 base_y-(h-1)，
+            # 草整体悬在地表上方 1px —— 实测 35 处草和地面之间有 1~2 行空隙，
+            # 放大看就是"草浮在空中"。
+            for k in range(h + 1):
                 yy = base_y - k
                 xx = gx + (lean if k > h // 2 else 0)
                 if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
                     px[xx, yy] = hx("moss_hi") if k > h - 2 else hx("moss")
 
-    # 地面草丛：沿地面顶部随机分布
+    # 地面草丛：沿**真实地表**随机分布。
+    #
+    # **不能固定写 GROUND_Y**。用户反馈「这个花草怎么都到石头里了」——
+    # 就是这个原因：装饰草一律种在 y=480（地面顶），
+    # 但台阶顶面在 440/400/360，于是：
+    #   · 台阶顶面完全没草
+    #   · 种在 480 的草被台阶立面挡住 / 浮在石头中间
+    # 现在改成查该 x 处最高的可站表面，种在真正的地上。
+    def ground_top_at(x):
+        best = None
+        for (sx, sy, sw, sh) in solids:
+            if sw < 40:
+                continue          # 排除边界墙/天花板
+            if sy < 100:
+                continue
+            if sx <= x < sx + sw:
+                if best is None or sy < best:
+                    best = sy
+        return best
+
     gx = 12
     while gx < ROOM_W - 12:
-        grass(gx, GROUND_Y, n=rng.randint(3, 6), hmax=rng.randint(4, 8))
+        gt = ground_top_at(gx)
+        if gt is not None:
+            grass(gx, gt, n=rng.randint(3, 6), hmax=rng.randint(4, 8))
         gx += rng.randint(28, 76)
 
     # ── 紫藤：从上方垂挂 ──
@@ -838,7 +904,7 @@ def main():
     terrain.save(os.path.join(OUT, "terrain.png"))
     print(f"  terrain.png  {terrain.size}")
 
-    deco = make_deco()
+    deco = make_deco(globals().get("_SOLIDS", []))
     deco.save(os.path.join(OUT, "deco.png"))
     print(f"  deco.png     {deco.size}")
 

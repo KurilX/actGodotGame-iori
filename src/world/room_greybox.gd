@@ -114,6 +114,36 @@ const WindSprite := preload("res://src/world/wind_sprite.gd")
 const WindPetals := preload("res://src/world/wind_petals.gd")
 
 
+
+func _surface_y_at(x: float) -> float:
+	"""查询世界坐标 x 处"可站表面"的 y。找不到返回 -1。
+
+	## 为什么需要这个
+
+	植被原来固定种在 `GROUND_Y_FOR_DECO`（480，地面顶那一条线）。
+	但关卡里有台阶和高台，它们的顶面在 440 / 400 / 360 等位置 ——
+	植被种在 480 就全部跑到石头里去了（用户反馈"花草怎么都到石头里了"），
+	而台阶顶上光秃秃的。
+
+	这里返回该 x 处**最高的实心地形顶面**，植被就种在真正的地表上。
+	"""
+	var best := -1.0
+	for r in SOLIDS:
+		var sx: float = float(r[0])
+		var sy: float = float(r[1])
+		var sw: float = float(r[2])
+		# 只考虑宽度够站人的地形（排除边界墙/天花板）
+		if sw < 40.0:
+			continue
+		if x < sx or x >= sx + sw:
+			continue
+		# 天花板类是 y 很小、且不是可站表面，跳过
+		if sy < 100.0:
+			continue
+		if best < 0.0 or sy < best:
+			best = sy
+	return best
+
 func _build_wind_life() -> void:
 	"""动态植被：会随风摇摆的草、花、芦苇 + 飘落的花瓣。
 
@@ -146,7 +176,11 @@ func _build_wind_life() -> void:
 		w.wind_freq = rng.randf_range(0.85, 1.25)
 		w.wind_amp = rng.randf_range(2.2, 3.4)
 		w.wind_speed = rng.randf_range(28.0, 40.0)
-		w.position = Vector2(x, GROUND_Y_FOR_DECO)
+		var sy_back := _surface_y_at(x)
+		if sy_back < 0.0:
+			x += 20.0
+			continue
+		w.position = Vector2(x, sy_back)
 		var n: int = rng.randi_range(3, 6)
 		for i in n:
 			var h: float = rng.randf_range(9.0, 18.0)
@@ -175,7 +209,11 @@ func _build_wind_life() -> void:
 		var w2: Node2D = WindSprite.new()
 		w2.wind_freq = rng.randf_range(0.9, 1.3)
 		w2.wind_amp = rng.randf_range(3.4, 5.2)   # 前景摆幅更大
-		w2.position = Vector2(x, GROUND_Y_FOR_DECO + 4.0)
+		var sy_front := _surface_y_at(x)
+		if sy_front < 0.0:
+			x += 60.0
+			continue
+		w2.position = Vector2(x, sy_front + 4.0)
 		for i in rng.randi_range(4, 7):
 			var h2: float = rng.randf_range(14.0, 26.0)
 			w2.add_blade(rng.randf_range(-6.0, 6.0), h2, 1.4,
@@ -194,14 +232,18 @@ func _build_wind_life() -> void:
 		var fw: Node2D = WindSprite.new()
 		fw.wind_freq = rng.randf_range(1.0, 1.4)
 		fw.wind_amp = rng.randf_range(2.8, 4.0)
-		fw.position = Vector2(x, GROUND_Y_FOR_DECO)
+		var sy_flow := _surface_y_at(x)
+		if sy_flow < 0.0:
+			x += 90.0
+			continue
+		fw.position = Vector2(x, sy_flow)
 		# 花茎
 		fw.add_blade(0.0, rng.randf_range(9.0, 15.0), 1.0,
 					 Color("#4A6B4F"))
 		flowers.add_child(fw)
 		# 花冠：用自绘节点画一个小十字花
 		var petal: Node2D = Node2D.new()
-		petal.position = Vector2(x, GROUND_Y_FOR_DECO - 12.0)
+		petal.position = Vector2(x, sy_flow - 12.0)
 		petal.z_index = -3
 		petal.set_script(preload("res://src/world/wind_flower.gd"))
 		petal.set("petal_color", Color("#FFB8D0") if rng.randf() < 0.7

@@ -396,6 +396,75 @@ func _init() -> void:
 			   "有 %d 行不一致，会出现横向明暗分界" % mismatch)
 
 
+
+	# ── 14. 植被必须种在真实地表上，不能埋进石头 ──
+	#
+	# **为真实观感问题补的**：装饰草原来固定种在 y=480（地面顶），
+	# 而台阶顶面在 440/400/380 —— 结果
+	#   · 台阶顶面完全没草
+	#   · 种在 480 的草被台阶立面挡住，或在石头上方"浮"着
+	# 用户反馈「这个花草怎么都到石头里了」就是这个问题。
+	#
+	# 判据：只看**草色像素**（绿系），且按 x 每 8px 分桶 ——
+	# 一桶里只要有**任意一列**的草触及地表（上下 2px 内），
+	# 就算这一簇扎了根。不能逐列判：一簇草里各列长短不齐，
+	# 短的那列本来就不该碰到地面（实测每簇都有 1~2 列偏短）。
+	var dtex: Texture2D = load("res://art/scene/deco.png")
+	if dtex != null and ttex != null:
+		var dimg: Image = dtex.get_image()
+		var timg3: Image = ttex.get_image()
+		var rootless := 0
+		var clusters := 0
+		var cx2 := 2
+		while cx2 < 2398:
+			clusters += 1
+			var rooted := false
+			for ox in range(0, 8):
+				var x2 := cx2 + ox
+				if x2 >= 2398:
+					break
+				# 这一列最底的草色像素
+				var lowest := -1
+				var dy2 := 539
+				while dy2 >= 0:
+					var c: Color = dimg.get_pixel(x2, dy2)
+					if c.a > 0.5 and c.g > c.r * 1.1 and c.g > c.b * 1.05:
+						lowest = dy2
+						break
+					dy2 -= 1
+				if lowest < 0:
+					continue
+				# 地表顶面：往下 3px 内有实心就算扎住了
+				for probe in range(0, 4):
+					var py2 := lowest + probe
+					if py2 < 540 and timg3.get_pixel(x2, py2).a > 0.5:
+						rooted = true
+						break
+				if rooted:
+					break
+			if not rooted:
+				# 这一桶里根本没有草色像素时不算失败
+				var has_grass := false
+				for ox in range(0, 8):
+					var x3 := cx2 + ox
+					if x3 >= 2398:
+						break
+					var yy3 := 300
+					while yy3 < 540:
+						var c3: Color = dimg.get_pixel(x3, yy3)
+						if c3.a > 0.5 and c3.g > c3.r * 1.1 and c3.g > c3.b * 1.05:
+							has_grass = true
+							break
+						yy3 += 1
+					if has_grass:
+						break
+				if has_grass:
+					rootless += 1
+			cx2 += 8
+		_check(rootless <= 2,
+			   "草扎在真实地表上（%d/%d 簇未接地）" % [rootless, clusters],
+			   "有 %d 簇草悬空，没长在地上" % rootless)
+
 	_finish()
 
 

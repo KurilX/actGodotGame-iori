@@ -75,8 +75,32 @@ FALLBACK_MODELS = ["kimi-k3-1", "glm-5.3", "glm-5.3-flash", "deepseek-v4-pro", "
 MAX_RETRIES = 4
 
 
+
+def _looks_complete(text):
+    """检查回答是否包含三个部分，且提到了参考游戏。
+
+    返回 False 表示这份回答不完整（被截断或没答全），应当重试。
+    """
+    # 三个部分：模型通常用「一/二/三」或「1./2./3.」分节
+    import re
+    parts = 0
+    for pat in (r"一[、,，.]", r"二[、,，.]", r"三[、,，.]"):
+        if re.search(pat, text):
+            parts += 1
+    if parts < 3:
+        # 也接受 ## 一 / 1. 这类写法
+        parts = sum(1 for p in (r"#+\s*一", r"#+\s*二", r"#+\s*三",
+                                r"^\s*1[\.\、]", r"^\s*2[\.\、]",
+                                r"^\s*3[\.\、]")
+                    if re.search(p, text, re.M))
+    if parts < 3:
+        return False
+    # 必须提到至少一个参考游戏（第三部分的实质内容）
+    games = ["空洞骑士", "奥日", "银河战士", "死亡细胞", "渎神",
+             "Hollow", "Ori", "Metroid", "Dead Cells", "Blasphemous"]
+    return any(g in text for g in games)
 def call_llm_with_fallback(base, token, prompt, preferred=None,
-                           max_tokens=4000):
+                           max_tokens=8000, images=None):
     """按 fallback 链尝试多个模型，返回 (text, model_used)。"""
     order = []
     if preferred:
@@ -87,11 +111,16 @@ def call_llm_with_fallback(base, token, prompt, preferred=None,
 
     for model in order:
         for attempt in range(MAX_RETRIES):
-            text = call_llm(base, token, model, prompt, max_tokens)
-            # **质量门槛**：模型偶尔返回极短的退化输出
-            # （实测 glm-5.3 返回过只有两个字符 "##"）。
-            # 当失败处理，继续换模型重试。
-            if text and len(text.strip()) >= 200:
+            text = call_llm(base, token, model, prompt, max_tokens,
+                            images=images)
+            # 质量门槛 + **完整性校验**。
+            #
+            # 只判长度不够：曾经有一份回答写到了 2000 多字符，
+            # 但在"见第三部分银河…"处被截断，第三部分完全缺失，
+            # 却因为长度达标被当成成功。
+            # 所以额外要求：必须能匹配到三个部分的小标题，
+            # 且必须提到至少一个参考游戏。
+            if text and len(text.strip()) >= 200 and _looks_complete(text):
                 return text, model
             if text:
                 short = len(text.strip())
@@ -102,14 +131,36 @@ def call_llm_with_fallback(base, token, prompt, preferred=None,
     return None, None
 
 
-def call_llm(base, token, model, prompt, max_tokens=4000):
-    """调用 Anthropic Messages 协议。返回文本。"""
+def _encode_image(path):
+    """把图片编码成 Anthropic 的 base64 image block。"""
+    import base64
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("ascii")
+    ext = os.path.splitext(path)[1].lower()
+    media = {".png": "image/png", ".jpg": "image/jpeg",
+             ".jpeg": "image/jpeg"}.get(ext, "image/png")
+    return {"type": "image",
+            "source": {"type": "base64", "media_type": media,
+                       "data": data}}
+
+
+def call_llm(base, token, model, prompt, max_tokens=8000, images=None):
+    """调用 Anthropic Messages 协议。返回文本。
+
+    images: 可选图片路径列表。**实测网关支持图片输入**，
+    所以可以把参考地图真的传给模型看，而不是只给它文件名。
+    """
     url = base + "/v1/messages"
+    if images:
+        content = [_encode_image(p) for p in images]
+        content.append({"type": "text", "text": prompt})
+    else:
+        content = prompt
     body = json.dumps({
         "model": model,
         "max_tokens": max_tokens,
         "temperature": 0.3,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [{"role": "user", "content": content}],
     }).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST", headers={
         "x-api-key": token,
@@ -128,12 +179,21 @@ def call_llm(base, token, model, prompt, max_tokens=4000):
         return None
 
     # 兼容两种返回结构
+    # 兼容两种返回结构
     if "content" in data:
         parts = []
         for blk in data["content"]:
             if isinstance(blk, dict) and blk.get("type") == "text":
                 parts.append(blk.get("text", ""))
-        return "".join(parts)
+        text = "".join(parts)
+        # **必须检查截断**：stop_reason == "max_tokens" 表示回答没说完。
+        # 之前完全没看这个字段，结果一份被截断在"见第三部分银河"的回答
+        # 被当成成功写入文件 —— 第三部分（参考成熟游戏）根本不存在。
+        if data.get("stop_reason") == "max_tokens":
+            print("  [截断] 回答未完成（stop_reason=max_tokens），当作失败",
+                  file=sys.stderr)
+            return None
+        return text
     return str(data)
 
 
@@ -248,6 +308,15 @@ B是BOSS，b苔团，l灯笼虫，s石守，T木桩。
 
 我们的原则：每个地形都要有存在的理由，爬上去要有回报。
 
+【参考真实地图】
+我们手上有空骑士（Hollow Knight）的官方地图剪影，文件在 docs/refs/：
+  hk_white_palace_1.png  左侧长走廊 + 竖直塔 + 顶部独立房间
+  hk_white_palace_3.png  垂直塔状结构 + 横向支路分叉
+  hk_white_palace_5.png  多层横向平台 + 陡峭的锯齿边缘
+  hk_godhome_1.png       最复杂：多层横向平台 + 多个竖直连接 + 独立岛房间
+这些图的特点是**每个竖直攀爬的终点都是独立房间或有内容的平台**，
+从来不是"爬上去看看然后跳回来"。
+
 请回答三个问题，每个先给判断再列具体问题：
 一，地形是否连续、有无突兀悬空块、画面是否显得乱。
 二，高低落差是否合理，特别检查有没有爬坡之后立刻下坡的无效设计，
@@ -294,8 +363,21 @@ def main():
 
     base, token = api_config()
     print(f"\n调用模型（首选 {args.model}，失败会自动换）...")
+    # 收集参考图（docs/refs 下的空骑士地图剪影）
+    refs = []
+    ref_dir = os.path.join(ROOT, "docs", "refs")
+    if os.path.isdir(ref_dir):
+        for fn in sorted(os.listdir(ref_dir)):
+            if fn.lower().endswith((".png", ".jpg", ".jpeg")):
+                refs.append(os.path.join(ref_dir, fn))
+    if refs:
+        print(f"附带 {len(refs)} 张参考地图")
+    else:
+        print("没有参考图（docs/refs 为空），只做纯文本分析")
+
     text, used = call_llm_with_fallback(base, token, prompt,
-                                        preferred=args.model)
+                                        preferred=args.model,
+                                        images=refs or None)
     if not text:
         print("所有模型都没返回内容。网关可能不稳定，稍后重试。",
               file=sys.stderr)

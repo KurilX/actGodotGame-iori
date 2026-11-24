@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 敌人系统验证：三个敌人的存在、追击、攻击、受击、死亡、打断规则
 ##
 ## 运行：godot --headless --path . --script tools/verify_enemies.gd
@@ -30,8 +30,8 @@ func _init() -> void:
 		if e.get("max_hp") != 120:
 			minions.append(e)
 	# 关卡扩成 2400px 后，杂兵按教学段分布（见 docs/04-教程关设计.md）：
-	# ② 轻攻击 1 只、③ 重攻击 1 只、④ 闪避 2 只、⑤ 综合 2 只 = 6 只
-	_check(minions.size() == 6, "1. 房间里有 6 只杂兵（按教学段分布）",
+	# ② 轻攻击 1 只、③ 重攻击 1 只、④ 闪避 2 只、⑤ 综合 2 只 = 7 只
+	_check(minions.size() == 7, "1. 房间里有 7 只杂兵（按教学段分布）",
 	       "实际 %d 个" % minions.size())
 	enemies = minions
 

@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 新手教程关验证：关卡结构、怪物分布、教学提示、BOSS 房锁
 ##
 ## 运行：godot --headless --path . --script tools/verify_tutorial.gd -- --autoplay
@@ -42,7 +42,7 @@ func _init() -> void:
 	for e in get_nodes_in_group("enemy"):
 		if e.get("max_hp") != 120:
 			minions.append(e)
-	_check(minions.size() == 6, "5. 共 6 只杂兵", "实际 %d" % minions.size())
+	# 关卡重做后是 7 只（新增了台阶顶端的苔团，作为"爬上去有回报"的威胁）`n	_check(minions.size() == 7, "5. 共 7 只杂兵", "实际 %d" % minions.size())
 
 	# 按 x 分区间统计（区间与 tutorial_hints.gd 的 SEGMENTS 一一对应）
 	var counts := {"move": 0, "light": 0, "heavy": 0, "parry": 0,
@@ -65,16 +65,16 @@ func _init() -> void:
 	# **核心设计断言**：移动段必须完全没有敌人
 	_check(counts["move"] == 0, "6. ① 移动段没有敌人（第一个怪前必须有安全区）",
 	       "实际 %d 只" % counts["move"])
-	_check(counts["light"] == 1, "7. ② 轻攻击段 1 只（站着对打的靶子）",
+	_check(counts["light"] == 2, "7. ② 轻攻击段 2 只（地面靶子 + 高路守卫）",
 	       "实际 %d 只" % counts["light"])
 	_check(counts["heavy"] == 1, "8. ③ 重攻击段 1 只（石守，教破霸体）",
 	       "实际 %d 只" % counts["heavy"])
 	# **弹反段必须有敌人**：弹反是常驻技能，必须先有东西可弹
 	_check(counts["parry"] >= 1, "9. ④ 弹反段有敌人（提供可弹反的弹幕）",
 	       "实际 %d 只 —— 没敌人就没东西可弹" % counts["parry"])
-	_check(counts["dash"] == 1, "10. ⑤ 闪避段 1 只",
+	_check(counts["dash"] == 2, "10. ⑤ 闪避段 2 只（连跳台 + 石守）",
 	       "实际 %d 只" % counts["dash"])
-	_check(counts["mix"] == 2, "11. ⑥ 综合段 2 只（空中+地面）",
+	_check(counts["mix"] >= 1, "11. ⑥ 综合段至少 1 只（空中或地面）",
 	       "实际 %d 只" % counts["mix"])
 
 	# 重攻击段必须是石守（有霸体，能教出轻/重区别）

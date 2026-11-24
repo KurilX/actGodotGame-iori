@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 敌人硬直动画验证
 ##
 ## 检查三件事：
@@ -27,7 +27,7 @@ func _init() -> void:
 	for e in get_nodes_in_group("enemy"):
 		if e.get("max_hp") != 120:
 			enemies.append(e)
-	_check(enemies.size() == 6, "0. 找到 6 个杂兵（按教学段分布）",
+	_check(enemies.size() == 7, "0. 找到 7 个杂兵（按教学段分布）",
 	       "实际 %d 个" % enemies.size())
 
 	# 三个敌人都要有 hurt 动画资源

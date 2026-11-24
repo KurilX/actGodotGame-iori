@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 ## 灰盒测试房：手动搭建静态碰撞体 + 单向平台
 ##
 ## 目的：W1 阶段排除 TileSet 配置的干扰，先把「跑跳砍」手感调出来。
@@ -53,6 +53,8 @@ const LEVEL_PATH := "res://levels/tutorial.json"
 # 下面这些在 _load_level() 里填充，保持和原来同名，
 # 这样 _build_solids() 等函数不用改。
 var SOLIDS: Array = []
+# 关卡实体表（敌人/BOSS/木桩），由 _load_level 填充
+var _level_entities: Array = []
 var ONE_WAY: Array = []
 var SPAWN := Vector2(80, 440)
 
@@ -82,6 +84,9 @@ func _load_level() -> bool:
 	ROOM_H = int(data.get("height", 540))
 	TUTORIAL_END = float(data.get("tutorial_end_x", 1560))
 	BOSS_ZONE_START = TUTORIAL_END
+
+	# 实体表（敌人/BOSS/木桩），供 _spawn_from_level 使用
+	_level_entities = data.get("entities", [])
 	# SPAWN 从实体表里取
 	for ent in data.get("entities", []):
 		if str(ent.get("kind", "")) == "spawn_player":
@@ -375,30 +380,35 @@ func _spawn_player() -> void:
 	#
 	# 段落区间：move 0-400 / light 400-760 / heavy 760-1080 /
 	#           parry 1080-1320 / dash 1320-1440 / mix 1440-1560
-
-	# ① 移动段 **不放敌人**：第一个怪之前必须有安全区。
-
-	# ② 轻攻击段：1 只苔团，站着对打的靶子。
-	_spawn_enemy("mossling", Vector2(620, 470))
-
-	# ③ 重攻击段：1 只石守站在高台上，教破霸体。
-	_spawn_enemy("stonepaw", Vector2(980, 415))
-
-	# ④ 弹反段：1 只苔团。它会吐毒弹 —— 这是教程里唯一的可弹反目标。
-	# 距离玩家入场点约 150px，正好落在苔团的远程射程内（80~240）。
-	_spawn_enemy("mossling", Vector2(1240, 470))
-
-	# ⑤ 闪避段：1 只苔团，作为冲刺穿过的对象。
-	_spawn_enemy("mossling", Vector2(1400, 470))
-
-	# ⑥ 综合段：灯笼虫（空中发弹）+ 石守（地面重甲），
-	# 两种威胁逼玩家同时用弹反与破霸体。
-	_spawn_enemy("lanternbug", Vector2(1470, 400))
-	_spawn_enemy("stonepaw", Vector2(1530, 470))
-
-	# BOSS「瓷面的守夜人」：BOSS 房中央
-	# BOSS「瓷面的守夜人」：BOSS 房中央
-	_spawn_boss(Vector2(2000, 468))
+	# ── 敌人与 BOSS：**从关卡 JSON 的 entities 表生成** ──
+	#
+	# 原来是硬编码坐标，和新关卡完全脱节 —— 改关卡后敌人还站在旧位置，
+	# 有的浮空、有的卡在台阶里。现在统一由 .lvl 字符画决定。
+	#
+	# 实体锚点在格子底部中心（角色按脚底对齐），
+	# 再上抬 2px 让碰撞体落到地面而不是半嵌进去。
+	var spawned_any := false
+	for ent in _level_entities:
+		var kind := str(ent.get("kind", ""))
+		var pos := Vector2(float(ent["x"]), float(ent["y"])) - Vector2(0, 2)
+		match kind:
+			"enemy_mossling":
+				_spawn_enemy("mossling", pos)
+				spawned_any = true
+			"enemy_lanternbug":
+				_spawn_enemy("lanternbug", pos)
+				spawned_any = true
+			"enemy_stonepaw":
+				_spawn_enemy("stonepaw", pos)
+				spawned_any = true
+			"spawn_boss":
+				_spawn_boss(pos)
+				spawned_any = true
+			"dummy":
+				_spawn_dummy(pos)
+				spawned_any = true
+	if not spawned_any:
+		printerr("关卡里没有任何实体，检查 .lvl 的 [map] 段")
 
 	# 摄像机跟随玩家，限制在房间内
 	var cam := Camera2D.new()

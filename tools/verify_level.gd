@@ -119,9 +119,35 @@ func _init() -> void:
 	_check(too_high == 0, "17. 地形层高差都在跳跃极限内",
 		   "有 %d 处高差 > 60px" % too_high)
 
-	# ── 8. 单向平台（可选，允许为空）──
+	# ── 8. 单向平台必须可达 ──
+	#
+	# **这条是为一个真实 bug 补的**：单向平台曾经放在高差 80px 的位置，
+	# 而玩家跳跃只有 58px —— 那块板子在视觉上很显眼，
+	# 但玩家永远跳不上去，等于画了个假目标。
+	#
+	# 判据：每段单向平台下方最近的实心顶面，高差必须 ≤ 跳跃极限。
 	var ow: Array = data.get("one_way", [])
 	print("  info 单向平台 %d 段" % ow.size())
+	var jump := 58.0
+	for plat in ow:
+		var px: float = float(plat[0])
+		var py: float = float(plat[1])
+		var pw: float = float(plat[2])
+		var below := -1.0
+		for s in solids:
+			var sx: float = float(s[0])
+			var sy: float = float(s[1])
+			var sw: float = float(s[2])
+			# 水平有交集，且在地形下方
+			if sx < px + pw and sx + sw > px and sy > py + 10.0:
+				if below < 0.0 or sy < below:
+					below = sy
+		if below < 0.0:
+			continue
+		var gap := below - py
+		_check(gap <= jump,
+			   "单向平台 y=%.0f 可达（高差 %.0f ≤ %.0f）" % [py, gap, jump],
+			   "高差 %.0f > 跳跃极限 %.0f，玩家跳不上去" % [gap, jump])
 
 	_finish()
 

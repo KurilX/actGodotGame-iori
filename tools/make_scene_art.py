@@ -375,6 +375,33 @@ def fill_rect(px, x0, y0, x1, y1, color):
                 px[x, y] = color
 
 
+def _draw_one_way(px, x, y, w):
+    """画一段单向平台：3px 厚木板。
+
+    视觉上必须和实心地形区分开 —— 玩家要能一眼看出"这是能穿的板子"。
+    做法：薄（3px）、两端有描边、底面有阴影线、顶面亮一档。
+    """
+    thick = 3
+    # 底面阴影（更暗，让它看起来悬空）
+    for xx in range(x, x + w):
+        if 0 <= xx < ROOM_W and 0 <= y + thick < ROOM_H:
+            px[xx, y + thick] = hx("stone_dk")
+    # 板身
+    for xx in range(x, x + w):
+        for yy in range(y, min(y + thick, ROOM_H)):
+            if 0 <= xx < ROOM_W:
+                px[xx, yy] = hx("stone")
+    # 顶面高光
+    for xx in range(x, x + w):
+        if 0 <= xx < ROOM_W:
+            px[xx, y] = hx("stone_hi")
+    # 两端描边
+    for xx in (x, x + w - 1):
+        if 0 <= xx < ROOM_W:
+            for yy in range(y, min(y + thick + 1, ROOM_H)):
+                px[xx, yy] = hx("ink")
+
+
 def make_terrain():
     """地形层：石台 + 地面。
 
@@ -415,9 +442,17 @@ def make_terrain():
     with open(lvl_path, encoding="utf-8") as _f:
         _lvl = json.load(_f)
     solids = [tuple(r) for r in _lvl.get("solids", [])]
-    print(f"  从 tutorial.json 读到 {len(solids)} 个地形矩形")
+    one_ways = [tuple(r) for r in _lvl.get("one_way", [])]
+    one_ways = [tuple(r) for r in _lvl.get("one_way", [])]
+    print(f"  从 tutorial.json 读到 {len(solids)} 个地形矩形，"
+          f"{len(one_ways)} 段单向平台")
     for (x, y, w, h) in solids:
         _draw_solid(px, rng, x, y, w, h)
+
+    # 单向平台。**之前完全没画**：ONE_WAY 只在游戏里生成了碰撞体，
+    # 贴图上是空的 —— 玩家会踩到一片看起来不存在的地面。
+    for (x, y, w) in one_ways:
+        _draw_one_way(px, int(x), int(y), int(w))
 
     return img
 
@@ -730,3 +765,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

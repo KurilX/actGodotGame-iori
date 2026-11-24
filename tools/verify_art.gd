@@ -465,6 +465,59 @@ func _init() -> void:
 			   "草扎在真实地表上（%d/%d 簇未接地）" % [rootless, clusters],
 			   "有 %d 簇草悬空，没长在地上" % rootless)
 
+
+	# ── 15. 高台顶面不能有"亮带" ──
+	#
+	# **为真实观感问题补的**：`_strata_color` 曾给"高于地面 60px"
+	# 单独返回 stone_hi，导致每个台地顶部一条 20px 高的亮带，
+	# 下方突然变暗，中间一道硬边 —— 用户形容为"亮色的小山坡"。
+	#
+	# 判据：台地顶面下方 12~28px 的主色，亮度不能超过 stone 档。
+	if ttex != null:
+		var lvl_f := FileAccess.open("res://levels/tutorial.json",
+									 FileAccess.READ)
+		var lvl_d = JSON.parse_string(lvl_f.get_as_text()) if lvl_f else null
+		if lvl_f:
+			lvl_f.close()
+		if lvl_d is Dictionary:
+			var timg4: Image = ttex.get_image()
+			var bright_bands := 0
+			var checked_bands := 0
+			for r in lvl_d.get("solids", []):
+				var sx: int = int(r[0])
+				var sy: int = int(r[1])
+				var sw: int = int(r[2])
+				if sw < 40 or sy > 470 or sy < 300:
+					continue
+				checked_bands += 1
+				var tally := {}
+				var ty2: int = sy + 12
+				while ty2 < sy + 28:
+					var tx: int = sx + sw / 2
+					if 0 <= tx and tx < 2400 and 0 <= ty2 and ty2 < 540:
+						var c: Color = timg4.get_pixel(tx, ty2)
+						if c.a > 0.5:
+							var k := c.to_rgba32()
+							tally[k] = int(tally.get(k, 0)) + 1
+					ty2 += 2
+				var best_n := 0
+				var best_c := Color(0, 0, 0, 0)
+				for k in tally:
+					if int(tally[k]) > best_n:
+						best_n = int(tally[k])
+						best_c = Color.hex(k)
+				if best_n > 0:
+					var lum := (best_c.r * 0.299 + best_c.g * 0.587
+								+ best_c.b * 0.114)
+					if lum > 0.48:
+						bright_bands += 1
+			if checked_bands > 0:
+				_check(bright_bands == 0,
+					   "台地立面没有异常亮带（%d/%d 块正常）"
+					   % [checked_bands - bright_bands, checked_bands],
+					   "有 %d 块台地顶部出现亮带，会像贴了一块浅色岩石"
+					   % bright_bands)
+
 	_finish()
 
 

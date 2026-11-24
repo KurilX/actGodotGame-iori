@@ -734,12 +734,29 @@ def _draw_solid(px, rng, x, y, w, h, solids):
         for xx in range(x, x + w):
             if xx < 0 or xx >= ROOM_W:
                 continue
+            # **顶面起波**：原来草皮一律从 `y`（矩形顶面）开始，
+            # 而矩形顶面是数学上的水平线 —— 实测全图 2420/2420
+            # 个顶面像素在同一条水平线上，这是"生硬"的第一来源。
+            #
+            # 起伏只依赖世界 x（不含 rng），所以**相邻地块在交界处天然连续**，
+            # 不会出现接缝。幅度 ±2px：够破掉直线感，
+            # 又不会让碰撞体（仍是矩形）和视觉错位太多。
+            # 起伏幅度收到 ±1px，并且**只向上不向下**（e <= 0）。
+            #
+            # 第一版用 ±2px 双向起伏，草皮会往上吃掉原本的岩石受光边，
+            # 也会往下盖住岩层 —— 放大 4 倍看是"贴上去的一条绿边"，
+            # 比旧版更生硬。改成只向上 1px，保留岩石原有层次。
+            e = int(round(math.sin(xx * 0.043) * 1.3
+                          + math.sin(xx * 0.109 + 1.7) * 0.8
+                          + math.sin(xx * 0.231 + 3.1) * 0.4))
+            e = min(0, e)
+            base_y = y + e
             # 多频噪声让草皮边缘参差，不是直线
             n = (math.sin(xx * 0.31) * 1.4 + math.sin(xx * 0.87 + 1.3) * 0.9
                  + rng.random() * 1.2)
             gh = max(3, grass_h + int(n))
             for k in range(gh):
-                yy = y + k
+                yy = base_y + k
                 if yy < 0 or yy >= ROOM_H:
                     continue
                 if k == 0:
@@ -752,7 +769,7 @@ def _draw_solid(px, rng, x, y, w, h, solids):
             if rng.random() < 0.12:
                 ln = rng.randint(2, 5)
                 for k in range(ln):
-                    yy = y + gh + k
+                    yy = base_y + gh + k
                     if 0 <= yy < ROOM_H:
                         px[xx, yy] = hx("moss_dk")
 

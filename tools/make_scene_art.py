@@ -545,23 +545,38 @@ def _draw_solid(px, rng, x, y, w, h, solids):
         # 这样不管地形在什么高度，它的立面都有"顶亮→中→暗→底弧"的纵深感，
         # 而且同一块地形内部是渐变的，不会出现横向断层
         #（因为相邻地块顶面高度不同时，交界处本来就是不同的立面）。
-        local = yy - y
-        # **立面要有 4 档而不是 3 档**。
-        # 原来写成 stone_hi → stone → stone_dk → ink，
-        # 但 stone_dk 到 ink 的跨度太大，立面下半直接黑掉，
-        # 台阶看起来像"半截浸在阴影里"。改成：
-        #   顶面亮 → 上部 stone → 中部 stone_dk → 底部再压一档（不用纯 ink）
-        band = max(8.0, h * 0.22)
-        if local < 3:
-            return hx("stone_hi")          # 顶面受光边
-        elif local < band:
-            return hx("stone")             # 上部立面
-        elif local < band * 2.0:
-            return hx("stone_dk")          # 中部
-        elif local < band * 3.2:
-            return hx("stone_dk")          # 下部（同色，靠岩层线区分）
+        # **必须按绝对世界 y 分档，不能按"离本地形顶面的深度"。**
+        #
+        # 这两轮踩的坑正好相反，记下来避免再来一次：
+        #
+        #   第一版：按"离地面顶(GROUND_Y)的深度"，但只给了 4 个很粗的
+        #           阈值 —— 高于地面的高台整体落进最亮一档，
+        #           内部一片均匀，用户说"往上垫了上面全是空的"。
+        #
+        #   第二版：改成"离本地形顶面的深度" —— 高台有了渐变，
+        #           但**相邻两块地形顶面高度不同时，同一个世界 y
+        #           会算出不同颜色**，横向并排立刻出现明暗分界，
+        #           用户说"过渡又不自然了"。
+        #
+        # 正解：**分档依据必须是绝对的、与"这块地形多高"无关的量**，
+        # 这样同一世界 y 永远是同一颜色，横向不可能出现分界；
+        # 同时把档位做**足够细**，高台因为自身跨了 100~160px，
+        # 自然会跨过好几档，内部也就有了层次。
+        #
+        # 档位（以地面顶 GROUND_Y=480 为 0，向上为负）：
+        #   d < -60  最亮（高台顶部/近光面）
+        #   d < -8   亮
+        #   d < 34   中
+        #   d >= 34  暗（画面底部）
+        d = yy - GROUND_Y
+        if d < -60:
+            return hx("stone_hi")
+        elif d < -8:
+            return hx("stone")
+        elif d < 34:
+            return hx("stone_dk")
         else:
-            return hx("ink")               # 最底只有一点点暗弧
+            return hx("ink")
 
     for yy in range(y, y + h):
         col = _strata_color(yy)

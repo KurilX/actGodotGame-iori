@@ -149,6 +149,45 @@ func _init() -> void:
 			   "单向平台 y=%.0f 可达（高差 %.0f ≤ %.0f）" % [py, gap, jump],
 			   "高差 %.0f > 跳跃极限 %.0f，玩家跳不上去" % [gap, jump])
 
+
+	# ── 9. 实体不能在地形上挖洞 ──
+	#
+	# **为真实观感问题补的**：`put()` 把实体字符直接写进网格，
+	# 如果那一格原本是 `#`，地形就被换成了空气 ——
+	# 台阶顶面因此出现 1 格宽 20px 的凹口（实测 r19 是 `##b#`），
+	# 截图上看起来像"一根悬空的柱子"。
+	#
+	# 判据：把每块可站地形的 x 区间展开成逐列的"最高顶面"，
+	# 再看有没有哪一列比左右邻列都低 8px 以上（= 凹口）。
+	var top_at := {}
+	for s2 in solids:
+		var sx2: int = int(s2[0])
+		var sy2: int = int(s2[1])
+		var sw2: int = int(s2[2])
+		if sw2 < 40 or sy2 < 100:
+			continue
+		var cx: int = sx2
+		while cx < sx2 + sw2:
+			if not top_at.has(cx) or sy2 < int(top_at[cx]):
+				top_at[cx] = sy2
+			cx += 4
+	var notch := 0
+	var cols: Array = top_at.keys()
+	cols.sort()
+	for i in range(1, cols.size() - 1):
+		var a: int = int(cols[i - 1])
+		var b: int = int(cols[i])
+		var c2: int = int(cols[i + 1])
+		if b - a > 8 or c2 - b > 8:
+			continue
+		var va: int = int(top_at[a])
+		var vb: int = int(top_at[b])
+		var vc: int = int(top_at[c2])
+		if vb > va + 8 and vb > vc + 8:
+			notch += 1
+	_check(notch == 0, "地形顶面没有凹口（实体没挖掉地形）",
+		   "发现 %d 处顶面凹陷，实体字符把地形挖成了空气" % notch)
+
 	_finish()
 
 

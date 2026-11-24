@@ -27,9 +27,25 @@ def fill(x0, y0, x1, y1, ch="#"):
             grid[y][x] = ch
 
 
+# 实体放置位置（**最后统一覆盖**，避免被后续 fill 盖掉）
+_entities = []
+
+
 def put(x, y, ch):
-    if 0 <= x < W and 0 <= y < H:
-        grid[y][x] = ch
+    """放一个实体（P/B/b/l/s/T）。
+
+    坑：如果直接写进 grid，后续的 fill() 会把它盖掉。
+    实测 BOSS 出生点 B 就是被 BOSS 房的地形 fill 覆盖，整个消失了。
+    所以实体先记在 _entities 里，最后一步再统一写。
+    """
+    _entities.append((x, y, ch))
+
+
+def apply_entities():
+    """render 之前调用：把实体写到 grid 上。"""
+    for (x, y, ch) in _entities:
+        if 0 <= x < W and 0 <= y < H:
+            grid[y][x] = ch
 
 
 # ═══════════ 边界 ═══════════
@@ -89,6 +105,7 @@ put(77, 23, "s")                 # 石守（地面）
 put(101, 23, "B")                # BOSS 站在地面
 
 def render():
+    apply_entities()
     lines = []
     for y in range(H):
         lines.append("".join(grid[y]))

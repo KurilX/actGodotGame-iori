@@ -343,6 +343,59 @@ func _init() -> void:
 				   "地形横向主色一致（%d/%d 行通过）" % [checked - bad_rows, checked],
 				   "有 %d 行主色占比 < 55%%，相邻地块明暗没对齐" % bad_rows)
 
+
+	# ── 13. 高台与地面必须是同一材质 ──
+	#
+	# **为真实观感问题补的**：`_strata_color` 原来写"高于地面 40px
+	# 就用 stone_dk"，结果 +80px 的高台整块是均匀深灰，
+	# 紧挨着的浅灰地面并排出现一条很硬的分界，高台像贴上去的。
+	# 改成"岩体明暗只由离地表多深决定"，高台和地面同色阶。
+	#
+	# 判据取**同深度**的行（地面顶以下），这样两边压强相同。
+	if ttex != null:
+		var timg2: Image = ttex.get_image()
+		var mismatch := 0
+		var checked2 := 0
+		for ty in range(482, 512, 5):
+			var up_tally := {}
+			var dn_tally := {}
+			for tx in range(20, 2380, 3):
+				var c: Color = timg2.get_pixel(tx, ty)
+				if c.a < 0.5:
+					continue
+				# 排除草皮绿
+				if c.g > c.r * 1.15 and c.g > c.b * 1.15:
+					continue
+				var k := c.to_rgba32()
+				if tx < 800 or tx > 1500:
+					up_tally[k] = int(up_tally.get(k, 0)) + 1
+				else:
+					dn_tally[k] = int(dn_tally.get(k, 0)) + 1
+			var up_key := -1
+			var up_n := 0
+			for k in up_tally:
+				if int(up_tally[k]) > up_n:
+					up_n = int(up_tally[k])
+					up_key = k
+			var dn_key := -1
+			var dn_n := 0
+			for k in dn_tally:
+				if int(dn_tally[k]) > dn_n:
+					dn_n = int(dn_tally[k])
+					dn_key = k
+			if up_n < 15 or dn_n < 15:
+				continue
+			checked2 += 1
+			if up_key != dn_key:
+				mismatch += 1
+		_check(checked2 >= 2,
+			   "岩体同深度配色，样本充足（%d 行）" % checked2,
+			   "只有 %d 行有效样本" % checked2)
+		_check(mismatch == 0,
+			   "高台下方岩体与地面同色阶（%d 行一致）" % checked2,
+			   "有 %d 行不一致，会出现横向明暗分界" % mismatch)
+
+
 	_finish()
 
 

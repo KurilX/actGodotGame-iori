@@ -111,6 +111,7 @@ func _ready() -> void:
 
 
 const WindSprite := preload("res://src/world/wind_sprite.gd")
+const BgParallax := preload("res://src/world/bg_parallax.gd")
 const WindPetals := preload("res://src/world/wind_petals.gd")
 
 
@@ -304,8 +305,8 @@ func _build_visuals() -> void:
 	# 为什么要换成贴图而不是继续用 Polygon2D：
 	# 灰盒的纯色块拼不出石块纹理、苔藓边缘、月光光晕这些细节，
 	# 而程序化生成贴图可以精确控制到像素，且能复用同一套调色板。
+	# sky 由 ParallaxBg 负责（见 _spawn_player 末尾），这里不再贴静态天空
 	var layers := [
-		["sky", -20],
 		["terrain", -10],
 		["deco", -2],
 	]
@@ -462,6 +463,27 @@ func _spawn_player() -> void:
 	cam.position_smoothing_speed = 12.0
 	player.add_child(cam)
 	cam.make_current()
+
+	# ── 分层视差背景 ──
+	#
+	# 放在 CanvasLayer 里、**关闭 follow_viewport**，这样 _draw() 拿到的是
+	# 屏幕坐标（0..480, 0..270），视差公式才能写成
+	# "-相机位移 * 视差系数"，否则图层会跟着相机一起跑。
+	#
+	# layer = -10：在世界的三层静态贴图（z_index -20/-10）之上，
+	# 但仍在角色之下。
+	if ResourceLoader.exists("res://art/bg/bg_sky.png"):
+		var bg_layer := CanvasLayer.new()
+		bg_layer.name = "ParallaxBg"
+		bg_layer.layer = -10
+		bg_layer.follow_viewport_enabled = false
+		add_child(bg_layer)
+		var bg := BgParallax.new()
+		bg.name = "BgParallax"
+		bg_layer.add_child(bg)
+		bg.setup(cam)
+	else:
+		printerr("视差背景素材缺失（先跑 tools/make_bg_layers.py）")
 
 	# ── BOSS 房锁：玩家越过分界线才唤醒 BOSS ──
 	# 用轮询而不是 Area2D：这里只是每帧比较一个 x 值，

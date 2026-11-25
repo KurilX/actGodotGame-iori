@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 ## 场景美术规范验证：调色板约束、动态植被、风吹动画
 ##
 ## 运行：godot --headless --path . --script tools/verify_art.gd -- --autoplay
@@ -356,7 +356,10 @@ func _init() -> void:
 		var timg2: Image = ttex.get_image()
 		var mismatch := 0
 		var checked2 := 0
-		for ty in range(482, 512, 5):
+		# 从 487 起采样：480 是地面顶面，481~485 是它的受光边（stone_hi）；
+		# x<800 还有一块顶面在 440 的高台，受光边也延伸到这里 ——
+		# 那一行本来就该是亮的，不是色阶不一致。
+		for ty in range(487, 512, 5):
 			var up_tally := {}
 			var dn_tally := {}
 			for tx in range(20, 2380, 3):

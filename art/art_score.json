@@ -1,0 +1,176 @@
+{
+ "pass_score": 70.0,
+ "min_score": 70.2,
+ "passed": true,
+ "failed": [],
+ "weights": {
+  "colors": 0.2,
+  "lum_bins": 0.22,
+  "detail": 0.18,
+  "contrast": 0.15,
+  "aa_purity": 0.15,
+  "hue_focus": 0.1
+ },
+ "skip_by_kind": {
+  "solid": [],
+  "sky": [
+   "colors",
+   "contrast"
+  ],
+  "mtn": [
+   "colors",
+   "contrast"
+  ]
+ },
+ "reference_range": {
+  "files": [
+   "docs\\refs\\pixel\\p2_db32_tileset.png",
+   "docs\\refs\\pixel\\p4_forest.png",
+   "docs\\refs\\pixel\\p1_castle_tiles.png",
+   "docs\\refs\\pixel\\p3_db32_mockup.png"
+  ],
+  "colors": {
+   "min": 15.0,
+   "median": 24.0,
+   "max": 115.0
+  },
+  "lum_bins": {
+   "min": 7.0,
+   "median": 13.0,
+   "max": 15.0
+  },
+  "detail": {
+   "min": 0.1333,
+   "median": 0.3289,
+   "max": 0.7041
+  },
+  "contrast": {
+   "min": 0.827,
+   "median": 0.893,
+   "max": 1.0
+  },
+  "aa_ratio": {
+   "min": 0.0,
+   "median": 0.0002,
+   "max": 0.0148
+  },
+  "hue_std": {
+   "min": 49.0,
+   "median": 56.8,
+   "max": 146.0
+  }
+ },
+ "items": [
+  {
+   "label": "地形层 terrain",
+   "path": "art/scene/terrain.png",
+   "missing": false,
+   "kind": "solid",
+   "skipped": [],
+   "items": {
+    "colors": 93.0,
+    "lum_bins": 87.5,
+    "detail": 100.0,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 80.8
+  },
+  {
+   "label": "天空层 bg_sky",
+   "path": "art/bg/bg_sky.png",
+   "missing": false,
+   "kind": "sky",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 78.0,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 70.2
+  },
+  {
+   "label": "远山 bg_mtn_far",
+   "path": "art/bg/bg_mtn_far.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 82.5,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 71.5
+  },
+  {
+   "label": "中山 bg_mtn_mid",
+   "path": "art/bg/bg_mtn_mid.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 84.9,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 72.1
+  },
+  {
+   "label": "近山 bg_mtn_near",
+   "path": "art/bg/bg_mtn_near.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 79.8,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 70.7
+  },
+  {
+   "label": "云层 bg_cloud",
+   "path": "art/bg/bg_cloud.png",
+   "missing": false,
+   "kind": "sky",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 95.4,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 75.0
+  }
+ ]
+}

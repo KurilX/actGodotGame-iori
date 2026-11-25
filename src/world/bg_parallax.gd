@@ -38,6 +38,8 @@ const VIEW_H := 270
 # 现在三层整体下移并拉开，让山脊落在画面的 45%~70% 区间。
 const LAYERS := [
 	{"n": "bg_sky",       "p": 0.0,  "d": 0.0, "y": 0},
+	# 云：视差极小（几乎不动）+ 自动漂移，是"飘在天上"的关键
+	{"n": "bg_cloud",     "p": 0.04, "d": 6.0, "y": 52},
 	{"n": "bg_mtn_far",   "p": 0.10, "d": 1.5, "y": 122},
 	{"n": "bg_mtn_mid",   "p": 0.22, "d": 3.0, "y": 152},
 	{"n": "bg_mtn_near",  "p": 0.38, "d": 0.0, "y": 182},
@@ -103,4 +105,47 @@ func _draw() -> void:
 			x += float(w)
 
 	if _moon:
-		draw_texture(_moon, Vector2(VIEW_W * MOON_X_FRAC, MOON_Y))
+		var mx := VIEW_W * MOON_X_FRAC
+		draw_texture(_moon, Vector2(mx, MOON_Y))
+
+		# ── 月光柱：从月亮往下的一束柔光 ──
+		#
+		# 用**逐行渐宽的梯形 + 低 alpha** 模拟体积光。
+		# alpha 走 0.10 → 0.02，越往下越淡，避免像一块白布。
+		# 这是纯光影、不改变任何实体的碰撞或颜色。
+		# **用逐像素抖动，不要用叠加的半透明矩形。**
+		#
+		# 第一版每行画一个 draw_rect，alpha 只有 0.02~0.10，
+		# 但相邻行的矩形在边界处会叠出**可见的横阶**，整束光像探照灯。
+		#
+		# 改成：逐行、**逐 2px 打点**，点的密度随高度衰减。
+		# 像素画里模拟柔光就该用抖动点阵，而不是 alpha 混合。
+		# **光柱要极淡，只做"暗示"，不做实体。**
+		#
+		# 前置版本密度 0.34、宽 8→52，实测像一堆白点往下掉（像下雪），
+		# 完全抢了月亮的视觉重心。
+		#
+		# 现在：密度降到 0.10 起、宽度收窄到 6→26、只覆盖月亮下方
+		# 约 60px（不到山脊），并且用**更暗的蓝紫**而不是纯白 ——
+		# 目标是"月光把近处的空气照亮了一点"，不是射灯。
+		var beam_top := MOON_Y + 10.0
+		var beam_bottom := MOON_Y + 74.0
+		var w_top := 6.0
+		var w_bottom := 26.0
+		var c := Color(0.55, 0.68, 0.85)
+		var yy := beam_top
+		var row := 0
+		while yy < beam_bottom:
+			var t := (yy - beam_top) / (beam_bottom - beam_top)
+			var half_w := (w_top + (w_bottom - w_top) * t) * 0.5
+			var dens := 0.13 * (1.0 - t) * (1.0 - t)
+			var x := mx - half_w
+			var col := 0
+			while x < mx + half_w:
+				var th := float(((col * 7 + row * 13) % 16)) / 16.0
+				if th < dens:
+					draw_rect(Rect2(x, yy, 2.0, 1.0), c, true)
+				x += 2.0
+				col += 1
+			yy += 1.0
+			row += 1

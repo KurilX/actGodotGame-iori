@@ -51,9 +51,10 @@ GROUPS = [
      ["docs/refs/ai", "art/ai_tiles", "art/screenshots"],
      ["ai_bg_01", "ai_bg_screen", "ai_bg_wide", "ai_bg_sky",
       "bg_ai_compare"]),
-    ("分层视差背景", "最终方案：六层独立平铺，随相机视差滚动",
+    ("分层视差背景", "最终方案：天空/云/月亮/三层山，独立平铺随相机视差滚动",
      ["art/bg", "art/screenshots"],
-     ["bg_sky", "bg_moon", "bg_mtn_", "bg_layers", "par_x"]),
+     ["bg_sky", "bg_moon", "bg_mtn_", "bg_cloud", "bg_layers",
+      "par_x", "cloud_t"]),
     ("原型与纹理", "程序化生成的贴图", ["art/scene"],
      ["proto_terrain", "terrain", "deco", "sky"]),
 ]

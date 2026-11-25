@@ -196,6 +196,57 @@ func _init() -> void:
 					   "静止层偏移了 %.1f px" % offsets[i])
 				break
 
+	# ── 7. 云层 ──
+	var cp := "res://art/bg/bg_cloud.png"
+	_check(ResourceLoader.exists(cp), "云层素材存在", "缺 bg_cloud.png")
+	if ResourceLoader.exists(cp):
+		var ct: Texture2D = load(cp)
+		_check(ct.get_width() == SCREEN_W * 2,
+			   "云层宽度为双屏（960）可无缝循环",
+			   "实际 %d" % ct.get_width())
+		var cimg: Image = ct.get_image()
+		var opaque := 0
+		for y in range(0, cimg.get_height(), 2):
+			for x in range(0, cimg.get_width(), 3):
+				if cimg.get_pixel(x, y).a > 0.5:
+					opaque += 1
+		_check(opaque > 50, "云层有可见内容（%d 采样）" % opaque,
+			   "云层几乎是空的（%d 采样）" % opaque)
+
+	# ── 8. 云层在视差层里，且有自动漂移 ──
+	var has_cloud := false
+	var cloud_drift := 0.0
+	var names_arr: Array = bg.get("LAYERS")
+	if names_arr != null:
+		for cfg in names_arr:
+			if str(cfg.get("n", "")) == "bg_cloud":
+				has_cloud = true
+				cloud_drift = float(cfg.get("d", 0.0))
+	_check(has_cloud, "云层已接入视差系统", "LAYERS 里没有 bg_cloud")
+	_check(cloud_drift > 0.0,
+		   "云层有自动漂移（%.1f px/s）" % cloud_drift,
+		   "云层漂移速度为 0，不会动")
+
+	# ── 9. 月亮光晕 ──
+	#
+	# 月亮贴图必须大于核心（有光晕），否则只是一个硬边圆点。
+	var mp := "res://art/bg/bg_moon.png"
+	if ResourceLoader.exists(mp):
+		var mt: Texture2D = load(mp)
+		_check(mt.get_width() >= 18,
+			   "月亮贴图含光晕（%dpx）" % mt.get_width(),
+			   "月亮只有 %dpx，太小没有光晕" % mt.get_width())
+		var mimg: Image = mt.get_image()
+		# 光晕 = 边缘有半透明/非核心色的像素
+		var halo := 0
+		for y in range(mimg.get_height()):
+			for x in range(mimg.get_width()):
+				var c := mimg.get_pixel(x, y)
+				if c.a > 0.3 and c.r < 0.75:
+					halo += 1
+		_check(halo > 6, "月亮有渐变光晕（%d px）" % halo,
+			   "月亮光晕几乎没有（%d px）" % halo)
+
 	_finish()
 
 

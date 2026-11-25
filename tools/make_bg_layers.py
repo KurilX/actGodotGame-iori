@@ -34,6 +34,7 @@
 
 import json
 import os
+import random
 import sys
 
 from PIL import Image, ImageFilter
@@ -174,36 +175,41 @@ def extract_moon(im):
     x0, y0 = max(0, x0), max(0, y0)
     x1, y1 = min(W, x1), min(H, y1)
 
-    # 缩到 1/8 做成像素月亮
-    crop = im.crop((x0, y0, x1, y1))
-    # 月亮直径约屏幕高的 1/10（270/10≈27），取 14px
-    tw = th = 14
-    small = crop.resize((tw, th), Image.LANCZOS)
-
-    # 只保留月亮本体（浅青）+ 光晕（稍暗一圈），其余透明
-    out = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
-    sp = small.load()
+    # **月亮要有多圈渐变光晕，不能只有一圈。**
+    #
+    # 第一版只有"核心 + 一圈光晕"，实测 20px 外就完全变暗，
+    # 没有柔和的月光感。
+    # 正常人眼看到的月晕是**多层同心圆，亮度指数衰减**，
+    # 在像素画里用"抖动密度递减"来模拟。
+    M = 22                      # 贴图尺寸（含光晕）
+    out = Image.new("RGBA", (M, M), (0, 0, 0, 0))
     op = out.load()
-    cx, cy = tw / 2.0, th / 2.0
-    r = min(tw, th) / 2.0
-    core = hex_rgb(MOON_COLORS[1])
-    halo = hex_rgb(MOON_COLORS[0])
-    # **月亮只画"核心 + 一圈光晕"两层，其余全透明。**
+    ccx = ccy = M / 2.0
+    # **核心要大、光晕要密**。
     #
-    # 第一版把整个裁剪框都填了色，导致画面里出现"一个青色点 +
-    # 一个紫色球"两个月亮的错觉 —— 那个紫球其实是光晕被错误填充了。
-    #
-    # 月球半径 r 是根据裁剪框算的，但裁剪框含了 6px 边距，
-    # 所以真正的月球半径应取 min(tw,th)//2 - 3。
-    for y in range(th):
-        for x in range(tw):
-            d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
-            if d <= r * 0.55:
-                op[x, y] = (*core, 255)
-            elif d <= r * 0.78:
-                op[x, y] = (*halo, 255)
-            # 其余保持透明，不再填充
-    return out, (cx, cy)
+    # 第一版 core_r=4 / halo_r=10.5，抖动密度 (1-t)^1.6，
+    # 实测月亮只有 8px、光晕是一圈稀疏散点，像噪点而不是光。
+    # 现在核心 5px、光晕延伸到 10px，密度改成 (1-t)^1.1 更平缓。
+    core_r = 5.0                # 核心半径
+    halo_r = 10.0               # 光晕最大半径
+
+    BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    core_c = hex_rgb("#D8F0F8")
+    halo_c = hex_rgb("#8FD3E8")
+
+    for y in range(M):
+        for x in range(M):
+            d = ((x - ccx + 0.5) ** 2 + (y - ccy + 0.5) ** 2) ** 0.5
+            if d <= core_r:
+                op[x, y] = (*core_c, 255)
+            elif d <= halo_r:
+                # 光晕：亮度随距离衰减，用抖动密度表现
+                t = (d - core_r) / max(0.01, halo_r - core_r)   # 0..1
+                density = (1.0 - t) ** 1.1                      # 指数衰减
+                th = (BAYER[y % 4][x % 4] + 0.5) / 16.0
+                if th < density:
+                    op[x, y] = (*halo_c, 255)
+    return out, (ccx, ccy)
 
 
 def quantize_ramp(img, ramp):
@@ -357,6 +363,58 @@ def mirror_tile(img):
     return out
 
 
+def make_cloud_layer():
+    """程序化云层：几条横向椭圆 + 抖动边缘。
+
+    用程序而不是 AI 的原因：云需要**可循环平铺**且**半透明**，
+    AI 生成的云很难保证这两点。
+    """
+    W, H = SCREEN_W, 70
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    px = img.load()
+    rng = random.Random(20261125)
+
+    # **云要厚一点、对比高一点**。
+    # 第一版 ry 只有 5~9px、颜色也接近背景，实测几乎看不见。
+    # 现在每个云团由 3~4 个椭圆叠成"积云"形状，暗部明显深于天空。
+    # 3 团云，横向跨度更大，纵向压在下半部（贴近山脊，更像低空云）
+    blobs = []
+    for i in range(3):
+        cx = 40 + i * (W - 80) // 2 + rng.randint(-16, 16)
+        cy = rng.randint(30, H - 12)
+        for k in range(4):
+            blobs.append((
+                cx + rng.randint(-40, 40),
+                cy + rng.randint(-5, 5),
+                rng.randint(26, 52),
+                rng.randint(7, 11),
+            ))
+
+    # 云用**比天空更暗**的紫，而不是更亮 —— 夜景里云是遮挡月光的暗块
+    CLOUD_HI = (0x3A, 0x24, 0x5C)    # 亮部（仍比天空暗）
+    CLOUD_LO = (0x2A, 0x18, 0x46)    # 暗部
+
+    BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    for y in range(H):
+        for x in range(W):
+            # 到最近云团边缘的归一化距离
+            best = 1e9
+            for (cx, cy, rx, ry) in blobs:
+                # 横向可以跨边界环绕
+                dx = abs(x - cx)
+                dx = min(dx, W - dx)
+                d = (dx / rx) ** 2 + ((y - cy) / ry) ** 2
+                best = min(best, d)
+            if best > 1.20:
+                continue
+            # 抖动做蓬松边缘：越靠外越稀
+            th = (BAYER[y % 4][x % 4] + 0.5) / 16.0
+            if best > 0.68 and th > (1.20 - best) / 0.52:
+                continue
+            px[x, y] = (*CLOUD_HI, 255) if best < 0.50 else (*CLOUD_LO, 255)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     im = load_source()
@@ -400,6 +458,18 @@ def main():
         tiled = mirror_tile(lay)
         tiled.save(os.path.join(OUT, f"{name}.png"))
         print(f"  {name}.png  {lay.size} -> {tiled.size} (镜像)")
+
+    # ── 云层 ──
+    #
+    # AI 源图里没有明确的云（只有山间薄雾），所以这里**程序化生成**：
+    # 几条横向拉长的椭圆，边缘用抖动做出蓬松感。
+    # 尺寸 480x60，横向镜像拼成 960，保证循环无缝。
+    cloud = make_cloud_layer()
+    # **必须镜像拼接成双屏宽**，否则横向平铺时接缝处会突然断开
+    # （第一版直接存 480 宽，循环到边界就凭空出现/消失一团云）。
+    cloud_tiled = mirror_tile(cloud)
+    cloud_tiled.save(os.path.join(OUT, "bg_cloud.png"))
+    print(f"  bg_cloud.png     {cloud.size} -> {cloud_tiled.size} (镜像)")
 
 if __name__ == "__main__":
     sys.exit(main())

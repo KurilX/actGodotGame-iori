@@ -1,0 +1,173 @@
+{
+ "passed": false,
+ "numeric_min": 70.2,
+ "numeric_threshold": 70.0,
+ "ai_min": 53.0,
+ "ai_avg": 63.3,
+ "ai_threshold": 55.0,
+ "final": 62.5,
+ "final_threshold": 68.0,
+ "weights": {
+  "numeric": 0.55,
+  "ai": 0.45
+ },
+ "gates": {
+  "numeric": true,
+  "ai": false,
+  "final": false
+ },
+ "ai_targets": [
+  {
+   "label": "教程关起点",
+   "path": "art/screenshots/par_x400.png",
+   "failed": false,
+   "depth": 14.0,
+   "grounding": 16.0,
+   "material": 10.0,
+   "polish": 13.0,
+   "total": 53.0,
+   "samples": 3,
+   "top_issue": "地形主体是大面积灰蓝纯色块，缺少土/石纹理，与草皮衔接处细节密度远低于参考素材",
+   "compare_note": "参考素材的泥土颗粒、砖石砌缝和多层明暗过渡，在截图中被压平为两三个纯色阶梯，纵深感靠背景山勉强支撑"
+  },
+  {
+   "label": "跳跃段台阶",
+   "path": "art/screenshots/par_x1200.png",
+   "failed": false,
+   "depth": 18.0,
+   "grounding": 19.0,
+   "material": 15.0,
+   "polish": 17.0,
+   "total": 69.0,
+   "samples": 3,
+   "top_issue": "地形侧面以等距横线纹理为主，重复感强，大面积蓝灰色块缺乏变化，悬空的白色灯泡状物件缺少支撑或来源说明",
+   "compare_note": "参考素材的土石有密集噪点、砖缝变化和边缘破损等高频细节，本截图纹理密度明显低一档，地形侧面近乎平涂"
+  },
+  {
+   "label": "BOSS 房",
+   "path": "art/screenshots/par_x2000.png",
+   "failed": false,
+   "depth": 17.0,
+   "grounding": 18.0,
+   "material": 15.0,
+   "polish": 18.0,
+   "total": 68.0,
+   "samples": 3,
+   "top_issue": "下方蓝灰色砖石平台纹理单一扁平，与上方草地的质感衔接生硬，像未完成的灰盒块",
+   "compare_note": "参考素材的地形剖面有密集的泥土颗粒、砖缝变化和植被点缀，本图地面下缘与平台细节密度明显不足"
+  }
+ ],
+ "numeric_items": [
+  {
+   "label": "地形层 terrain",
+   "path": "art/scene/terrain.png",
+   "missing": false,
+   "kind": "solid",
+   "skipped": [],
+   "items": {
+    "colors": 93.0,
+    "lum_bins": 87.5,
+    "detail": 100.0,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 80.8
+  },
+  {
+   "label": "天空层 bg_sky",
+   "path": "art/bg/bg_sky.png",
+   "missing": false,
+   "kind": "sky",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 78.0,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 70.2
+  },
+  {
+   "label": "远山 bg_mtn_far",
+   "path": "art/bg/bg_mtn_far.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 82.5,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 71.5
+  },
+  {
+   "label": "中山 bg_mtn_mid",
+   "path": "art/bg/bg_mtn_mid.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 84.9,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 72.1
+  },
+  {
+   "label": "近山 bg_mtn_near",
+   "path": "art/bg/bg_mtn_near.png",
+   "missing": false,
+   "kind": "mtn",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 79.8,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 70.7
+  },
+  {
+   "label": "云层 bg_cloud",
+   "path": "art/bg/bg_cloud.png",
+   "missing": false,
+   "kind": "sky",
+   "skipped": [
+    "colors",
+    "contrast"
+   ],
+   "items": {
+    "colors": 30.0,
+    "lum_bins": 30.0,
+    "detail": 95.4,
+    "contrast": 0.0,
+    "aa_purity": 100.0,
+    "hue_focus": 100.0
+   },
+   "score": 75.0
+  }
+ ]
+}

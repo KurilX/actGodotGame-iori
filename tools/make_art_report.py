@@ -59,6 +59,13 @@ def main():
     with open(SCORE, encoding="utf-8") as f:
         d = json.load(f)
 
+    # 终审数据（数值 + AI + 合并）。缺失时报告仍能生成，只是没有 AI 段。
+    final = None
+    fp = os.path.join(ROOT, "art", "final_score.json")
+    if os.path.exists(fp):
+        with open(fp, encoding="utf-8") as f:
+            final = json.load(f)
+
     threshold = float(d["pass_score"])
     passed = bool(d["passed"])
     items = d.get("items", [])
@@ -127,7 +134,22 @@ def main():
         f'最低 {d["min_score"]:.1f} 分 · '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M")}</div>\n')
 
-    if passed:
+    if final is not None:
+        ok = bool(final.get("passed"))
+        gates = final.get("gates", {})
+        rows = []
+        for key, cn in (("numeric", "数值指标"), ("ai", "AI 视觉"),
+                        ("final", "合并总分")):
+            g = gates.get(key, False)
+            mark = "✓" if g else "✗"
+            rows.append(f"{mark} {cn}")
+        head = "全部通过" if ok else "不通过"
+        cls = "ok" if ok else "bad"
+        parts.append(
+            f'<div class="verdict {cls}">{"✓" if ok else "✗"} {head}'
+            f'<span style="float:right;font-weight:400;font-size:13px">'
+            f'{" · ".join(rows)}</span></div>\n')
+    elif passed:
         parts.append(
             f'<div class="verdict ok">✓ 全部通过 —— '
             f'最低 {d["min_score"]:.1f} 分 ≥ 门槛 {threshold:.0f} 分</div>\n')
@@ -154,8 +176,39 @@ def main():
             f"<td>{w:.2f}</td></tr>\n")
     parts.append("</table>\n")
 
+    # ── AI 视觉打分 ──
+    if final is not None:
+        parts.append("<h2>AI 视觉评审（与成熟素材同尺度比较）</h2>\n")
+        parts.append(
+            '<p class="note">把游戏实机截图与多张成熟商业素材一起给模型，'
+            '要求在同一把尺子下比较。每个目标采样 3 次取中位数。'
+            '四个维度各 25 分。</p>\n')
+        parts.append("<table><tr><th>截图</th><th>层次</th><th>落地</th>"
+                     "<th>材质</th><th>完成度</th><th>总分</th></tr>\n")
+        for t in final.get("ai_targets", []):
+            tot = float(t.get("total", 0))
+            cls = "good-score" if tot >= float(
+                final.get("ai_threshold", 0)) else "bad-score"
+            parts.append(
+                f"<tr><td>{t.get('label','?')}</td>"
+                f"<td>{t.get('depth',0):.0f}</td>"
+                f"<td>{t.get('grounding',0):.0f}</td>"
+                f"<td>{t.get('material',0):.0f}</td>"
+                f"<td>{t.get('polish',0):.0f}</td>"
+                f'<td class="{cls}"><b>{tot:.0f}</b></td></tr>\n')
+        parts.append("</table>\n")
+
+        parts.append("<h3 style=\"font-size:13px;margin:16px 0 8px\">"
+                     "AI 指出的具体问题</h3>\n<ul style=\"margin:0;"
+                     "padding-left:20px;font-size:13px\">\n")
+        for t in final.get("ai_targets", []):
+            issue = (t.get("top_issue") or "").strip()
+            if issue:
+                parts.append(f"<li><b>{t.get('label','?')}</b>：{issue}</li>\n")
+        parts.append("</ul>\n")
+
     # ── 逐项资产 ──
-    parts.append("<h2>当前资产评分</h2>\n")
+    parts.append("<h2>数值指标评分</h2>\n")
     for it in items:
         label = it.get("label", "?")
         path = it.get("path", "")

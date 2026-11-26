@@ -20,3 +20,11 @@ __pycache__/
 Thumbs.db
 desktop.ini
 *.tmp
+
+# pixel-studio 临时工作区与旧图基线
+art/tiles/.pswork/
+art/tiles/_src/
+art/tiles/_work/
+art/bg/out/
+art/screenshots/_old_*.png
+art/scene/_old_*.png

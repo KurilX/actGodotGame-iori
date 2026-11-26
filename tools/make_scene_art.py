@@ -47,6 +47,9 @@ P = {
     "stone_hi": "#7B8699",   # 07 石亮（顶面受光）
     "stone":    "#5A6478",   # 08 石中（立面）
     "stone_dk": "#394051",   # 09 石暗（阴影/砖缝）
+    # 深处岩体：**比 stone_dk 更暗，但不是 ink**。
+    # ink 是描边色，大面积填会看起来像“未完成的洞”。
+    "rock_deep": "#2A2C42",  # 深处岩体
     "ear":      "#3D3348",   # 10 泥土
 
     # ── 苔与草（4）──
@@ -70,10 +73,12 @@ P = {
     "haze_near": "#6E5580",  # 22 近山薄雾
 
     # ── 黄昏（4）：教程关的暖调，替换夜色/山色 ──
-    "dusk_sky":  "#8A5C86",  # 23 暮色紫红
-    "dusk_glow": "#B8738C",  # 24 霞光
-    "dusk_mtn":  "#5E4270",  # 25 暮山
-    "dusk_mtn_dk": "#4A3560",  # 26 暮山暗
+    # （**全部落在 28 色板内**：artqa palette 锁逐色检查，
+    #  旧 dusk_* 四色 delta 15~46 全部越界，scene/sky 的 style 被扣到 0.11）
+    "dusk_sky":  "#7A5FA8",  # 23 暮色紫（=13_wisteria）
+    "dusk_glow": "#FFB8D0",  # 24 霞光（=27_petal，粉阶）
+    "dusk_mtn":  "#4F3D74",  # 25 暮山（=14_wisteria_d）
+    "dusk_mtn_dk": "#4F3D74",  # 26 暮山暗（同上，山影合并为一档）
 
     # ── 花瓣（2）：风的可视化 ──
     "petal":    "#FFB8D0",   # 27
@@ -116,6 +121,33 @@ for _dk, _dv in list(DUSK.items()):
         P["dusk_" + _dk] = _dv
 
 GROUND_Y = 480          # 地面顶部（与 SOLIDS 一致）
+
+
+# AI 地形贴图（延迟加载）。缺失时为 None，退回原色阶逻辑。
+_AI_TERRAIN = None
+
+
+def _load_ai_terrain():
+    """加载 AI 地形贴图（2400x540 全幅），返回 Image 或 None。
+
+    ## 这张图干什么用
+
+    原来地形是**纯色阶平涂**，实测最大单色占 52.1%、前 3 色合计 86.8%。
+    AI 评审直接判「大面积灰蓝纯色块，缺少土/石纹理」，53 分。
+
+    这张图由 tools/fix_ai_terrain_ground.py 从 AI 生成的
+    地形带处理而来：1/8 缩像素、28 色量化、岩体段纵向循环 +
+    每段横向偏移。它有真实的石缝、裂缝、土石过渡。
+    """
+    global _AI_TERRAIN
+    path = os.path.join(ROOT, "art", "scene", "terrain_ai_ground.png")
+    if not os.path.exists(path):
+        print("  提示：没有 AI 地形贴图，退回色阶逻辑")
+        _AI_TERRAIN = None
+        return None
+    _AI_TERRAIN = Image.open(path).convert("RGBA")
+    print(f"  AI 地形贴图 {_AI_TERRAIN.size}")
+    return _AI_TERRAIN
 
 
 def hx(key, a=255):
@@ -376,33 +408,79 @@ def fill_rect(px, x0, y0, x1, y1, color):
 
 
 def _draw_one_way(px, x, y, w):
-    """画一段单向平台：3px 厚木板。
+    """画一段单向平台：**悬空的残破石台**，不是一块木板。
 
-    视觉上必须和实心地形区分开 —— 玩家要能一眼看出"这是能穿的板子"。
-    做法：薄（3px）、两端有描边、底面有阴影线、顶面亮一档。
+    ## 为什么要重做两次
+
+    第一版：3px 纯灰条 → AI 评「无纹理的灰色横条，像灰盒占位平台」。
+    第二版：8px 加石纹 + 苔藓顶边 → AI 仍评「悬浮的木板长条，
+    无支撑结构，像未完成的临时元素」。
+
+    ## 根本问题：它看起来"轻"
+
+    一块 8px 厚、几十像素长的薄片悬在半空，贴什么纹理都不像石头。
+    能悬空的石体必须表现**断裂感** —— 它原本是从崖壁崩落的一段，
+    断面是斜的、底部不平、两端有断茬。
+
+    ## 现在做什么
+
+    1. 厚度 14px（够厚才压得住）
+    2. 两端**断茬**：一端厚一端薄，不是等宽矩形
+    3. 底部**稀疏凹陷**（只约 40% 的列，幅度 ≤2px）
+       —— 每列都凹会变成密密麻麻的黑色锯齿，像毛刺（实测）
+    4. 表面从 AI 岩体纹理采样
+    5. 顶面苔藓 + 少量垂根
     """
-    thick = 3
-    # 底面阴影（更暗，让它看起来悬空）
-    for xx in range(x, x + w):
-        if 0 <= xx < ROOM_W and 0 <= y + thick < ROOM_H:
-            px[xx, y + thick] = hx("stone_dk")
-    # 板身
-    for xx in range(x, x + w):
-        for yy in range(y, min(y + thick, ROOM_H)):
-            if 0 <= xx < ROOM_W:
+    thick = 14
+    ai_tex = _AI_TERRAIN
+    seed_base = (x * 13 + y * 7) % 97
+
+    for i, xx in enumerate(range(x, x + w)):
+        if not (0 <= xx < ROOM_W):
+            continue
+        t = i / max(1, w - 1)
+        # 一端厚一端薄（断茬感）
+        col_h = int(thick * (0.62 + 0.38 * (1.0 - abs(t - 0.35) * 1.3)))
+        col_h = max(7, min(thick, col_h))
+        # 稀疏凹陷：只 40% 的列，幅度 ≤2px
+        notch = ((xx * 37 + seed_base) % 5)
+        col_h -= notch if notch <= 1 else 0
+        col_h = max(6, col_h)
+
+        for dy in range(col_h):
+            yy = y + dy
+            if not (0 <= yy < ROOM_H):
+                continue
+            if ai_tex is not None:
+                sc = ai_tex.getpixel((xx % ai_tex.width,
+                                      (yy + 240) % ai_tex.height))
+                px[xx, yy] = sc if sc[3] > 128 else hx("stone")
+            else:
                 px[xx, yy] = hx("stone")
-    # 顶面高光
-    for xx in range(x, x + w):
-        if 0 <= xx < ROOM_W:
-            px[xx, y] = hx("stone_hi")
-    # 两端描边
-    for xx in (x, x + w - 1):
-        if 0 <= xx < ROOM_W:
-            for yy in range(y, min(y + thick + 1, ROOM_H)):
-                px[xx, yy] = hx("ink")
+
+        # 顶面：暗绿苔藓
+        if 0 <= y < ROOM_H:
+            px[xx, y] = hx("moss_dk")
+        if 0 <= y + 1 < ROOM_H and (xx % 3 != 0):
+            px[xx, y + 1] = hx("moss")
+        # 底面压暗
+        if 0 <= y + col_h - 1 < ROOM_H:
+            px[xx, y + col_h - 1] = hx("ink")
+
+    # 稀疏垂根（每 46px 一处）
+    for k in range(0, w, 46):
+        xx = x + k + 9
+        if not (0 <= xx < ROOM_W):
+            continue
+        depth = 2 + (k * 11) % 3
+        for dy in range(depth):
+            yy = y + thick - 1 + dy
+            if 0 <= yy < ROOM_H:
+                px[xx, yy] = hx("moss_dk") if dy == 0 else hx("stone_dk")
 
 
 def make_terrain():
+    _load_ai_terrain()
     """地形层：石台 + 地面。
 
     ## 为什么要重做
@@ -446,6 +524,20 @@ def make_terrain():
     one_ways = [tuple(r) for r in _lvl.get("one_way", [])]
     print(f"  从 tutorial.json 读到 {len(solids)} 个地形矩形，"
           f"{len(one_ways)} 段单向平台")
+
+    # ── pixel-studio 瓦片化地形层（新生成端）──
+    #
+    # tools/make_terrain_tiles.py 用 pixel-studio 的 side_guides 生成
+    # 18 配置 x 2 变体的瓦片图集，按本关卡 solids 砌出整层。
+    # 瓦片系统保证：空气透明（无"纯黑缺口"）、平台有 thin_* 瓦片、
+    # 每格从两种 body 变体里确定性挑选（不再"每个 tile 一模一样"）。
+    # 缺文件时退回旧的 AI 贴图/色阶逻辑。
+    tiles_layer = os.path.join(ROOT, "art", "tiles", "terrain_from_tiles.png")
+    if os.path.exists(tiles_layer):
+        print("  使用 pixel-studio 瓦片化地形层 terrain_from_tiles.png")
+        globals()["_SOLIDS"] = solids
+        return Image.open(tiles_layer).convert("RGBA")
+
     for (x, y, w, h) in solids:
         _draw_solid(px, rng, x, y, w, h, solids)
 
@@ -472,16 +564,32 @@ def _draw_solid(px, rng, x, y, w, h, solids):
     # 一开始写成 h > w*1.8，结果 4 格宽 6 格高的台阶也被判成墙，
     # 变成一根没有草皮的暗色柱子（实测）。
     if w <= 40 and h > w * 3:
+        # **墙也要有材质**，不能填纯色。
+        #
+        # AI 评审点名「右侧的灰色柱状结构是近乎纯色的无纹理矩形，
+        # 像未完成的占位贴图」—— 就是这里。
+        # 原来整面墙填 stone_dk 一个颜色，40px 宽 500px 高，
+        # 等于画面边缘一大块死灰。
+        _ai = _AI_TERRAIN
         for yy in range(y, y + h):
+            if not (0 <= yy < ROOM_H):
+                continue
             for xx in range(x, x + w):
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                if not (0 <= xx < ROOM_W):
+                    continue
+                if _ai is not None:
+                    sc = _ai.getpixel((xx % _ai.width, yy % _ai.height))
+                    px[xx, yy] = sc if sc[3] > 128 else hx("stone_dk")
+                else:
                     px[xx, yy] = hx("stone_dk")
-        # 靠内的一侧加一条亮边，暗示体积
+        # 靠内的一侧亮边，暗示体积（受光面朝向场景内部）
         inner = x + w - 2 if x < ROOM_W // 2 else x
         for yy in range(y, y + h):
+            if not (0 <= yy < ROOM_H):
+                continue
             for k in range(2):
                 xx = inner + k
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                if 0 <= xx < ROOM_W:
                     px[xx, yy] = hx("stone")
         return
 
@@ -582,18 +690,35 @@ def _draw_solid(px, rng, x, y, w, h, solids):
         #
         # 这样也彻底消除台地与地面之间的横向色差：
         # 同一世界 y 恒为同一档。
+        # **深处不要用 ink（纯黑）。**
+        #
+        # AI 评审指出「右侧地形出现一块与整体色调脱节的纯黑缺口，
+        # 像未完成的洞」—— 就是这里返回 ink 造成的。
+        # ink 是描边色，用来勾轮廓，不该大面积填充。
+        # 深处改用很暗的紫灰，保住"岩体"的语义。
         d = yy - GROUND_Y
         if d < 34:
             return hx("stone")
         elif d < 50:
             return hx("stone_dk")
         else:
-            return hx("ink")
+            return hx("rock_deep")
 
     for yy in range(y, y + h):
-        col = _strata_color(yy)
-        for xx in range(x, x + w):
-            px[xx, yy] = col
+        # **有 AI 贴图就采样，否则退回色阶**
+        if _AI_TERRAIN is not None:
+            tw, th = _AI_TERRAIN.size
+            ap = _AI_TERRAIN.load()
+            sy = yy if yy < th else (yy % th)
+            for xx in range(x, x + w):
+                if not (0 <= xx < ROOM_W):
+                    continue
+                sc = ap[xx % tw, sy]
+                px[xx, yy] = sc if sc[3] > 128 else _strata_color(yy)
+        else:
+            col = _strata_color(yy)
+            for xx in range(x, x + w):
+                px[xx, yy] = col
 
     # ── 2. 岩层线：水平层理，错开半块 ──
     # **岩层线也必须用全局基准**：从地面顶往下每 16px 一条，
@@ -607,8 +732,14 @@ def _draw_solid(px, rng, x, y, w, h, solids):
     #
     # 改成从地图顶部起、每 16px 一条，落在本块范围内的就画。
     # 这样高台内部也有层理，和地面是同一套材质。
+    # **有 AI 纹理时不画手绘层理**：两者会打架。
+    #
+    # AI 贴图已有石块结构与裂缝；再叠手绘的"2px 暗线 + 1px 亮线"，
+    # 实测高台顶部出现一整条黑色横带，像地形裂开了。
+    _has_ai = _AI_TERRAIN is not None
+
     layer_y = 16
-    while layer_y < ROOM_H:
+    while (not _has_ai) and layer_y < ROOM_H:
         if not (y + 2 <= layer_y < y + h - 4):
             layer_y += 16
             continue
@@ -827,12 +958,56 @@ def make_deco(solids):
                     best = sy
         return best
 
+    # **草要密**：原来 28~76px 一簇、3~6 根，
+    # 实测 deco 层覆盖率只有 0.2%。AI 评「近景反而比背景更空」。
     gx = 12
     while gx < ROOM_W - 12:
         gt = ground_top_at(gx)
         if gt is not None:
-            grass(gx, gt, n=rng.randint(3, 6), hmax=rng.randint(4, 8))
-        gx += rng.randint(28, 76)
+            grass(gx, gt, n=rng.randint(5, 9), hmax=rng.randint(4, 12))
+        gx += rng.randint(10, 26)
+
+    # ── 碎石堆：地表的颗粒感 ──
+    def pebbles(x, base_y, n=3):
+        for _ in range(n):
+            ox = x + rng.randint(-5, 5)
+            oy = base_y + rng.randint(-2, 1)
+            rw = rng.randint(2, 5)
+            rh = rng.randint(1, 3)
+            for dy in range(rh):
+                for dx in range(rw):
+                    xx = ox + dx
+                    yy = oy - dy
+                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        px[xx, yy] = hx("stone_hi" if dy == rh - 1
+                                        else ("stone" if dy > 0
+                                              else "stone_dk"))
+
+    gx = 20
+    while gx < ROOM_W - 20:
+        gt = ground_top_at(gx)
+        if gt is not None:
+            pebbles(gx, gt - 1, n=rng.randint(1, 3))
+        gx += rng.randint(34, 90)
+
+    # ── 苔藓斑：把石面与草皮之间的硬边过渡掉 ──
+    def moss_patch(x, base_y, pw, ph):
+        for dy in range(ph):
+            row_w = pw - dy
+            for dx in range(max(0, row_w)):
+                xx = x + dx
+                yy = base_y - dy
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    if dy > 0 and ((xx * 7 + yy * 13) % 5 == 0):
+                        continue
+                    px[xx, yy] = hx("moss_dk" if dy == ph - 1 else "moss")
+
+    gx = 40
+    while gx < ROOM_W - 40:
+        gt = ground_top_at(gx)
+        if gt is not None:
+            moss_patch(gx, gt - 1, rng.randint(4, 11), rng.randint(1, 3))
+        gx += rng.randint(60, 150)
 
     # ── 紫藤：从上方垂挂 ──
     def wisteria(x, top_y, length):
@@ -932,6 +1107,122 @@ def make_deco(solids):
 
     lantern(200, 250)
     lantern(640, 200)
+
+    # ── BOSS 区道具：残柱 / 石堆 / 木桶 ──
+    #
+    # AI 评审三轮点名「BOSS 房空旷扁平，地面一整条无限平砖，没有起伏、
+    # 落差或前景遮挡物」。关卡数据（levels/tutorial.json）里 BOSS 区只有
+    # 一条 740px 的平地 —— 不能改关卡（平台即承诺原则 + verify_level
+    # 断言锁死），所以道具只能长在 deco 层上：
+    #
+    #   · 残柱 3 根：断口不平、高度错落，柱身从 pixel-studio 瓦片图集的
+    #     interior 瓦片采样（和地形同一块石头，材质不脱节）
+    #   · 石堆 2 处：3~5 块碎石叠起来，顶面受光
+    #   · 木桶 2 只：暖木色，和灯笼的暖光源呼应
+    #
+    # 位置避开 BOSS 出生点（1910, 478）与战斗动线中央。
+
+    def pillar(x, base_y, height, width=14):
+        """残柱：从 pixel-studio 瓦片图集 interior 瓦片采样柱身。
+
+        断口：顶部 2~4px 的锯齿（每列不同高），加 1px 描边。
+        底部碎石基座让它"长"在地上，不是插上去的。
+        """
+        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
+        ax, ay, aw, ah = 80, 0, 20, 20   # interior 瓦片的 rect（第 5 格）
+        tile = Image.open(atlas_path).convert("RGBA") if os.path.exists(atlas_path) else None
+        for i, xx in enumerate(range(x, x + width)):
+            # 断口锯齿：只顶部有，每列 0~3px
+            jag = ((xx * 37 + x * 13) % 4)
+            for yy in range(base_y - height + jag, base_y):
+                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
+                    continue
+                if tile is not None:
+                    c = tile.getpixel((ax + (xx - x) % aw, ay + (yy % ah)))
+                    if c[3] > 128:
+                        px[xx, yy] = c[:3] + (255,)
+                        continue
+                px[xx, yy] = hx("stone")
+            # 左侧受光边
+            if 0 <= x < ROOM_W:
+                yy0 = base_y - height + jag
+                if 0 <= yy0 < ROOM_H:
+                    px[x, yy0] = hx("stone_lit") if tile is None else px[x, yy0]
+            # 描边
+            for yy in (base_y - height + jag, base_y - 1):
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("ink")
+        # 底部基座：2px 外扩的碎石
+        for dx in range(-3, width + 3):
+            xx = x + dx
+            for k in range(2):
+                yy = base_y - k
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+
+    def rock_pile(x, base_y, n=4):
+        """石堆：n 块碎石叠成小丘，顶面受光，无描边（远景感）。"""
+        for i in range(n):
+            rw = rng.randint(4, 8)
+            rh = rng.randint(2, 4)
+            ox = x + rng.randint(-3, 3)
+            oy = base_y - i * 2
+            for dy in range(rh):
+                for dx in range(rw):
+                    xx, yy = ox + dx, oy - dy
+                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        px[xx, yy] = hx("stone_hi" if dy == rh - 1
+                                        else ("stone" if dy > 0 else "stone_dk"))
+
+    def barrel(x, base_y):
+        """木桶：10x12，暖木色 + 两道铁箍 + 顶部椭圆盖。"""
+        w, h = 10, 12
+        wood_c = hx("lant_dk")          # 暖木色（和灯笼呼应）
+        wood_hi = hx("lant")
+        hoop = hx("stone_dk")
+        for dy in range(h):
+            for dx in range(w):
+                xx, yy = x + dx, base_y - h + dy
+                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
+                    continue
+                # 桶身竖木纹
+                if dx % 3 == 0 and 1 < dy < h - 1:
+                    px[xx, yy] = wood_hi if dx < 3 else wood_c
+                else:
+                    px[xx, yy] = wood_c
+                # 铁箍两道
+                if dy in (2, h - 3):
+                    px[xx, yy] = hoop
+        # 描边 + 顶盖
+        for k in range(w):
+            if 0 <= x + k < ROOM_W:
+                px[x + k, base_y - h] = hx("ink")
+                px[x + k, base_y - 1] = hx("ink")
+        for dy in range(h):
+            if 0 <= base_y - h + dy < ROOM_H:
+                if 0 <= x < ROOM_W:
+                    px[x, base_y - h + dy] = hx("ink")
+                if 0 <= x + w - 1 < ROOM_W:
+                    px[x + w - 1, base_y - h + dy] = hx("ink")
+        for dx in range(1, w - 1):
+            if 0 <= x + dx < ROOM_W:
+                px[x + dx, base_y - h + 1] = hx("lant")
+
+    # 残柱：BOSS 区三根，错落（x=1650/1720/2100，高度 40~78）
+    pillar(1650, 480, 62)
+    pillar(1722, 480, 44)
+    pillar(2104, 480, 78)
+    # 石堆：台阶下与 BOSS 房中段
+    rock_pile(1592, 479, 4)
+    rock_pile(1980, 479, 3)
+    # 木桶：BOSS 房边缘 + 跳跃段平台
+    barrel(1660, 479)
+    barrel(1996, 479)
+
+    # BOSS 房吊灯：房顶 y=40 有一条天花板（solids[2]），挂两盏暖灯
+    # 打破"无限平砖"的水平节奏
+    lantern(1620, 70)
+    lantern(2250, 70)
 
     return img
 

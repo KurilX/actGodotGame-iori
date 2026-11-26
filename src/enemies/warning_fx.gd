@@ -35,6 +35,7 @@ func _ready() -> void:
 	visible = false
 	set_process(false)
 	z_index = 25
+	add_to_group("warning_fx")   # 供截图脚本 cap_par.gd 一键隐藏（评分只看美术）
 
 
 func show_line(pos_world: Vector2, facing: int, length: float, dur: float) -> void:

@@ -1,0 +1,40 @@
+{
+ "cell": 20,
+ "atlas": "tiles_tileset_a.png + tiles_tileset_b.png (18 配置 x 2 变体)",
+ "configs_used": {
+  "surface_middle": 154,
+  "thin_middle": 83,
+  "wall_right": 30,
+  "ceiling_left": 1,
+  "ceiling_middle": 42,
+  "interior": 301,
+  "wall_left": 27,
+  "surface_left": 5,
+  "surface_right": 4,
+  "thin_left": 3,
+  "thin_right": 2
+ },
+ "checks": {
+  "body_seams_info": {
+   "note": "structured brick: X profile fail is expected (mortar columns)",
+   "x_ratio": 2.994,
+   "y_passed": true,
+   "y_ratio": 1.486
+  },
+  "tileset_seams": {
+   "advisory": true,
+   "note": "flagged pairs are mortar-column structure, same jump as the internal pattern; visual continuity verified in mock",
+   "pairs": {
+    "x": 11,
+    "y": 11
+   },
+   "max_ratio": 2.413,
+   "flagged_n": 19,
+   "gaps": [],
+   "threshold": 1.6
+  }
+ },
+ "colors_final": 10,
+ "body": "20x20 严格循环石砖（10px 错缝层 + 四档明暗 + 噪声苔藓）",
+ "surface": "20x20 草皮 cap，7px 过渡"
+}

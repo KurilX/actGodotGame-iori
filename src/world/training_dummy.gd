@@ -81,29 +81,48 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	if hp <= 0:
-		# 倒下：只画一截残桩
+		# 倒下：一截残桩 + 石座上的碎木
 		draw_rect(Rect2(-7, -6, 14, 6), Color("#394051"))
+		draw_rect(Rect2(-9, -2, 18, 4), Color("#45283C"))
 		return
 
 	var base := Color("#5A6478")
 	var lit := Color("#7B8699")
 	var ink := Color("#12142A")
+	var wood := Color("#7A6A58")        # 木身（palette.e 的土亮档）
+	var wood_dk := Color("#5A4C40")     # 木暗（缠绳/阴影）
+	var rope := Color("#E0913F")        # 绑绳（灯笼暗档，暖色点缀）
 
 	if _flash > 0.0:
 		base = Color("#FFFFFF")
 		lit = Color("#FFFFFF")
+		wood = Color("#FFFFFF")
 
-	# 木桩身
-	draw_rect(Rect2(-7, -30, 14, 24), base)
-	# 左上高光（光源锁死左上）
-	draw_rect(Rect2(-7, -30, 3, 24), lit)
-	# 顶盖
-	draw_rect(Rect2(-9, -34, 18, 4), lit)
+	# ── 石座（和地形同材质的 stone 档，1px 描边）──
+	# 之前木桩直接插在草地上，"孤立悬贴"的观感一半来自没有承重结构。
+	draw_rect(Rect2(-11, -8, 22, 8), base)
+	draw_rect(Rect2(-11, -8, 22, 2), lit)          # 座顶受光
+	draw_rect(Rect2(-11, -8, 22, 8), ink, false, 1.0)
+	draw_rect(Rect2(-11, -1, 22, 1), ink)          # 座底落地阴影
+
+	# ── 木桩身（木纹竖条 + 缠绳）──
+	draw_rect(Rect2(-7, -34, 14, 26), wood)
+	draw_rect(Rect2(-7, -34, 3, 26), lit)          # 左上高光（光源锁死左上）
+	# 木纹：两根竖暗线
+	draw_rect(Rect2(-2, -34, 1, 26), wood_dk)
+	draw_rect(Rect2(3, -34, 1, 26), wood_dk)
+	# 缠绳：上下两圈（草垫的绑法）
+	draw_rect(Rect2(-7, -32, 14, 2), rope)
+	draw_rect(Rect2(-7, -14, 14, 2), rope)
+	# 顶盖：石帽压住木桩
+	draw_rect(Rect2(-9, -38, 18, 4), base)
+	draw_rect(Rect2(-9, -38, 18, 1), lit)
 	# 描边
-	draw_rect(Rect2(-7, -30, 14, 24), ink, false, 1.0)
-	draw_rect(Rect2(-9, -34, 18, 4), ink, false, 1.0)
+	draw_rect(Rect2(-7, -34, 14, 26), ink, false, 1.0)
+	draw_rect(Rect2(-9, -38, 18, 4), ink, false, 1.0)
+
 	# 血量条（顶部 2px）
 	var w := 18.0
 	var ratio := float(hp) / float(max_hp)
-	draw_rect(Rect2(-9, -39, w, 2), Color("#12142A"))
-	draw_rect(Rect2(-9, -39, w * ratio, 2), Color("#FF7A9C") if ratio < 0.4 else Color("#FFE9A8"))
+	draw_rect(Rect2(-9, -43, w, 2), Color("#12142A"))
+	draw_rect(Rect2(-9, -43, w * ratio, 2), Color("#FF7A9C") if ratio < 0.4 else Color("#FFE9A8"))

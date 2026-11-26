@@ -53,14 +53,17 @@ SCREEN_W, SCREEN_H = 480, 270
 # 和紫调的远山、中山脱节（实测近山主色 #2A3A63 明显偏蓝）。
 # 现在把低端也改成紫调，整组形成从深紫到浅紫的连续过渡。
 PURPLE_RAMP = [
-    "#1A1030",   # 最深（近山底部）
-    "#251844",
-    "#332057",
-    "#452A6E",   # 中段
-    "#553580",
-    "#6B4A96",
-    "#7F5FAE",
-    "#9678C4",   # 最亮（远山顶部）
+    # **全部落在 28 色板内**（artqa 的 palette 锁逐色检查，越界即扣 style 分）
+    # 旧 ramp 的 #332057/#452A6E/#6B4A96/#9678C4 都不在板上（delta 19~26），
+    # 现在直接用板内紫阶：ink→night_far→night_mid→wisteria_d→wisteria→wisteria_l
+    "#12142A",   # 最深（近山底部）= 01_ink
+    "#1B2244",   # 02_night_far
+    "#2A3A63",   # 03_night_mid
+    "#4F3D74",   # 14_wisteria_d（中段，紫调暗阶）
+    "#4F3D74",   # 同上（8 级压成 6 级，避免板内没有的过渡色）
+    "#7A5FA8",   # 13_wisteria
+    "#7A5FA8",   # 同上
+    "#A98FD6",   # 最亮（远山顶部）= 15_wisteria_l
 ]
 
 MOON_COLORS = ("#8FD3E8", "#D8F0F8")
@@ -302,17 +305,65 @@ def extract_layer(im, ridge_frac, ramp):
     # **第一版写成了 base = sh * (1 - ridge_frac)**，ridge_frac=0 时
     # base 等于整个高度，top 全部越界 → **整层是空的**（实测画面只剩天空）。
     base = int(sh * ridge_frac * 0.8)
+    # **山体内部必须有 3~4 档明暗，不能一大块纯色。**
+    #
+    # AI 评审反复指出「中景紫色坡地与背景明暗分离过弱，
+    # 大片近似纯色的区域削弱了纵深感」「山峦明度过于接近」。
+    #
+    # 真实远山的光照规律：
+    #   · 山脊线附近受光最亮（朝阳/月光打在棱线）
+    #   · 往下 1/4 处是次亮面
+    #   · 再往下过渡到背光面
+    #   · 山脚沉入雾里最暗
+    #
+    # 现在按相对高度分 4 档，档与档之间用 **1~2px 抖动**过渡，
+    # 避免出现生硬的色带边界。
+    n_pal = len(pal)
+    hi2 = pal[max(0, n_pal - 2)]        # 次亮
+    mid = body                           # 主体
+    lo = pal[max(0, n_pal // 2 - 1)]     # 背光
+    darkest = pal[0]
+
     for x in range(sw):
         r = ridge[x]
         top = max(0, min(sh, r + base))
+        span = max(1, sh - top)
         for y in range(top, sh):
-            # 底部 1/3 用暗弧，形成"山脚沉入雾里"的层次
-            if y > top + (sh - top) * 0.66:
-                op[x, y] = (*base_dark, 255)
+            t = (y - top) / span          # 0=山脊, 1=山脚
+            if t < 0.10:
+                c = hi2
+            elif t < 0.34:
+                c = mid
+            elif t < 0.62:
+                c = lo
             else:
-                op[x, y] = (*body, 255)
+                c = darkest
+            # 档间抖动过渡：只在前 2 档交界处抖 2px，避免生硬横线
+            if 0.30 <= t < 0.36 or 0.58 <= t < 0.65:
+                seed = (x * 11 + y * 7) % 16
+                if seed < 6:
+                    c = mid if t < 0.5 else lo
+            # **每档内部再加细纹理**，否则是死板色带。
+            #
+            # AI 反复指出「山峦明度过于接近，大片近似纯色区域削弱纵深」。
+            # 远山即使在大气透视下，也不是纯色 —— 它有岩脊、沟壑、
+            # 零星树线。这里用确定性哈希撒 1px 的明暗点，
+            # 密度控制在 12%，形成"颗粒"而不是噪点。
+            seed2 = (x * 7919 + y * 104729) % 100
+            if seed2 < 7:
+                c = hi2 if t < 0.5 else mid
+            elif seed2 < 12:
+                c = lo if t < 0.5 else darkest
+            op[x, y] = (*c, 255)
         if 0 <= top < sh:
-            op[x, top] = (*edge, 255)    # 山脊高光 1px
+            op[x, top] = (*edge, 255)
+        # **山脊下方 2~3px 加一条次亮带**：光从上方来，
+        # 山脊棱线下方会有一个略暗但仍在受光面的区域。
+        # 只画 1px 高光会让山脊像一条白边，缺少体积。
+        if 0 < top + 1 < sh:
+            op[x, top + 1] = (*hi2, 255)
+        if 0 < top + 2 < sh and (x % 3 != 0):
+            op[x, top + 2] = (*hi2, 255)
     return out
 
 
@@ -418,8 +469,9 @@ def make_cloud_layer():
             ))
 
     # 云用**比天空更暗**的紫，而不是更亮 —— 夜景里云是遮挡月光的暗块
-    CLOUD_HI = (0x3A, 0x24, 0x5C)    # 亮部（仍比天空暗）
-    CLOUD_LO = (0x2A, 0x18, 0x46)    # 暗部
+    # （落在 28 色板内：night_mid / night_far，artqa palette 锁通过）
+    CLOUD_HI = (0x2A, 0x3A, 0x63)    # 亮部 = 03_night_mid（仍比天空暗）
+    CLOUD_LO = (0x1B, 0x22, 0x44)    # 暗部 = 02_night_far
 
     BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
     for y in range(H):

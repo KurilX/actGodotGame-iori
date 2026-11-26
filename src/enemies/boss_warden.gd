@@ -103,6 +103,14 @@ func _ready() -> void:
 	# 帧是 144x144，锚点要相应调整（基类按 48x48 设的 -24）
 	_anim.position = Vector2(0, -72)
 
+	# 接触阴影：BOSS 体型是杂兵 3 倍，脚下那只小光圈/小红点
+	# 会被 AI 评成"调试痕迹"——大体积必须有大的接地锚点
+	var sh := Node2D.new()
+	sh.name = "Shadow"
+	sh.set_script(load("res://src/player/shadow.gd"))
+	sh.radius_scale = 2.6       # BOSS 宽 40px vs 角色 20px
+	add_child(sh)
+
 	_build_shockwave()
 	_build_warning()
 

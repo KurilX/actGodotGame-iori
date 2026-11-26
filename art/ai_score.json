@@ -1,46 +1,46 @@
 {
  "scale": 100,
- "avg_score": 74.7,
- "min_score": 69.0,
+ "avg_score": 82.3,
+ "min_score": 79.0,
  "targets": [
   {
    "label": "教程关起点",
    "path": "art/screenshots/par_x400.png",
    "failed": false,
-   "depth": 19.0,
-   "grounding": 20.0,
-   "material": 17.0,
-   "polish": 18.0,
-   "total": 74.0,
+   "depth": 21.0,
+   "grounding": 21.0,
+   "material": 19.0,
+   "polish": 21.0,
+   "total": 82.0,
    "samples": 5,
-   "top_issue": "地形砖块纹理以均匀重复为主，缺乏土/石质感的明暗变化与破损细节，显得单薄",
-   "compare_note": "参考素材的地形有更密的杂点、植被与结构变化，截图的中景层次和细节密度明显低一档"
+   "top_issue": "橙色漂浮物与场景缺少投影或视觉锚点，且中部地形细节密度偏低，草丛与砖块重复感较明显",
+   "compare_note": "地形纹理变化和点缀密度（如参考素材中的土层颗粒、砖缝变化、道具点缀）明显少于成熟素材，整体偏干净简单"
   },
   {
    "label": "跳跃段台阶",
    "path": "art/screenshots/par_x1200.png",
    "failed": false,
-   "depth": 18.0,
-   "grounding": 19.0,
-   "material": 15.0,
-   "polish": 17.0,
-   "total": 69.0,
+   "depth": 20.0,
+   "grounding": 21.0,
+   "material": 18.0,
+   "polish": 20.0,
+   "total": 79.0,
    "samples": 5,
-   "top_issue": "台阶侧面砖块纹理高度重复且缺少明暗分层，大面积同色砖墙显得单调",
-   "compare_note": "参考素材地形有清晰的顶面草皮/侧面土石分色和散落装饰（石块、木桶、道具），截图的砖块结构细节密度与变化明显更少"
+   "top_issue": "台阶石砖纹理平铺重复感明显，砖面高光缺少逐块变化",
+   "compare_note": "与参考素材相比细节密度略低，参考中地形有逐块随机化的裂纹与杂色，而截图的砖块单元过于规整统一"
   },
   {
    "label": "BOSS 房",
    "path": "art/screenshots/par_x2000.png",
    "failed": false,
-   "depth": 21.0,
-   "grounding": 21.0,
-   "material": 18.0,
-   "polish": 21.0,
-   "total": 81.0,
+   "depth": 22.0,
+   "grounding": 22.0,
+   "material": 20.0,
+   "polish": 22.0,
+   "total": 86.0,
    "samples": 5,
-   "top_issue": "中景紫色山丘与近景地形的明度差不足，纵深层次略糊",
-   "compare_note": "角色与氛围接近商业级，但地形砖块纹理重复规律、细节密度略低于参考图集"
+   "top_issue": "几根石砖柱造型雷同、剪影重复，中景缺少道具或结构变化来打破单调",
+   "compare_note": "参考素材的地形拼接更丰富、道具密度更高（木桶、钱袋、箱子点缀），本图boss房场景除boss外几乎空置，细节密度略低"
   }
  ],
  "references": [

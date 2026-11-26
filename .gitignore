@@ -41,3 +41,6 @@ art/screenshots/_old_*.png.import
 art/**/*.png.import
 art/screenshots/autotile_preview.png
 art/tiles/_proto_side_atlas.png.import
+
+# Ark API key
+tools/ark_key.txt

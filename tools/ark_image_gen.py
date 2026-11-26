@@ -1,5 +1,6 @@
 """接入层正式化：tools/ark_image_gen.py（可复用的 Ark 生图客户端）。"""
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -7,8 +8,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 API = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
-# 火山方舟 API key（用户 2026-11-26 提供，doubao-seedream-5-0-flash）
-ARK_API_KEY = "ARK_KEY_REDACTED"
+# 火山方舟 API key：**不要写进代码**（GitHub push protection 会拦截）。
+# 读取顺序：环境变量 ARK_API_KEY → tools/ark_key.txt（gitignore）→ 报错。
+ARK_API_KEY = os.environ.get("ARK_API_KEY", "")
+if not ARK_API_KEY:
+    _key_file = ROOT / "tools" / "ark_key.txt"
+    if _key_file.exists():
+        ARK_API_KEY = _key_file.read_text(encoding="utf-8").strip()
+if not ARK_API_KEY:
+    raise RuntimeError("缺 Ark API key：设 ARK_API_KEY 环境变量，"
+                       "或写入 tools/ark_key.txt（已在 .gitignore）")
 MODEL = "doubao-seedream-5-0-flash-260915"
 
 try:

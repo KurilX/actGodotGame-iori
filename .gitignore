@@ -36,3 +36,8 @@ art/boss/*.png.import
 art/boss/src/*.png.import
 art/scene/terrain_ai_ground.png.import
 art/screenshots/_old_*.png.import
+
+# Godot 导入清单（png 已入库，.import 留本地生成）
+art/**/*.png.import
+art/screenshots/autotile_preview.png
+art/tiles/_proto_side_atlas.png.import

@@ -275,6 +275,9 @@ func _handle_input(_delta: float) -> void:
 	# 闪避优先于一切（除了受击/死亡）
 	if Input.is_action_just_pressed("dash") and _dash_cd <= 0.0:
 		_start_dash()
+		var audio := get_tree().root.find_child("AudioMgr", true, false)
+		if audio != null:
+			audio.play_sfx("dash", -6.0)
 
 	if Input.is_action_just_pressed("jump"):
 		_jump_buffer = JUMP_BUFFER
@@ -507,6 +510,12 @@ func _begin_swing() -> void:
 	# 2 帧，而正常攻击判定要 0.06s（7 帧）后才开 —— 弹反根本来不及。
 	# 动作游戏里"格挡/弹反"本来就应该比"出伤害"更早生效。
 	_parry_window = PARRY_WINDOW
+
+	# 挥击音效：轻/重不同 whoosh（AudioMgr 是 bootstrap 的子节点，
+	# 从任意节点都能 get_node("/root/BootstrapName/AudioMgr") —— 用组查找更稳）
+	var audio := get_tree().root.find_child("AudioMgr", true, false)
+	if audio != null:
+		audio.play_sfx("swing_heavy" if is_heavy_attack else "swing_light")
 
 	_play_attack_anim()
 	_fire_slash_fx()
@@ -956,6 +965,11 @@ func take_damage(amount: int, from_x: float) -> void:
 	damaged.emit(amount)
 	_hurt_timer = HURT_STUN
 	state = State.HURT
+
+	# 受击音效
+	var audio := get_tree().root.find_child("AudioMgr", true, false)
+	if audio != null:
+		audio.play_sfx("hurt_player", -3.0)
 
 	var dir := signf(global_position.x - from_x)
 	if dir == 0.0:

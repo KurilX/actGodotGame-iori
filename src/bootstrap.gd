@@ -40,9 +40,11 @@ const SettingsPanel := preload("res://src/ui/settings_panel.gd")
 const TutorialHints := preload("res://src/ui/tutorial_hints.gd")
 const ParrySpark := preload("res://src/skills/parry_spark.gd")
 const CartoonFilter := preload("res://src/ui/cartoon_filter.gd")
+const AudioManager := preload("res://src/systems/audio_manager.gd")
 
 var skill_tree: Node
 var save: Node
+var audio: Node = null
 var _mode: Mode = Mode.MENU
 var _room: Node = null
 var _player: Node = null
@@ -75,6 +77,12 @@ func _ready() -> void:
 	skill_tree.name = "SkillTree"
 	skill_tree.set_script(SkillTree)
 	add_child(skill_tree)
+
+	# ── 音频管理器（BGM 场景切换 + SFX 池）──
+	audio = Node.new()
+	audio.name = "AudioMgr"
+	audio.set_script(AudioManager)
+	add_child(audio)
 
 	# ── 常驻 UI：主菜单 + 设置 ──
 	_menu = _make_layer("MenuLayer", 10, MainMenu, "MainMenu")
@@ -146,6 +154,20 @@ func _url_has_autoplay() -> bool:
 	return q == "1" or q.to_lower() == "true"
 
 
+func _process(_delta: float) -> void:
+	# BGM 场景切换：玩家跨过 BOSS 房分界线时换曲（节流到每 0.5s 检查一次）
+	if _mode != Mode.GAME or _player == null or audio == null:
+		return
+	_zone_check_t += _delta
+	if _zone_check_t < 0.5:
+		return
+	_zone_check_t = 0.0
+	var zone := "boss" if _player.global_position.x >= 1560.0 else "courtyard"
+	audio.set_zone(zone)
+
+var _zone_check_t := 0.0
+
+
 # ─────────────── 状态切换 ───────────────
 
 func _enter_menu() -> void:
@@ -159,6 +181,9 @@ func _enter_menu() -> void:
 		_room = null
 		_player = null
 		_pierce_fx = null
+	# 菜单 BGM（忧郁钢琴）
+	if audio != null:
+		audio.set_zone("menu")
 
 
 func _enter_game(from_save: bool) -> void:
@@ -183,6 +208,11 @@ func _enter_game(from_save: bool) -> void:
 	_player = _find_player(_room)
 	if _player != null and skill_tree.has_method("bind_chain"):
 		skill_tree.bind_chain(_player.get_chain())
+
+	# 游戏区 BGM：按玩家位置分场景（教程庭院 / BOSS 房）
+	if audio != null and _player != null:
+		var zone := "courtyard" if _player.global_position.x < 1560.0 else "boss"
+		audio.set_zone(zone)
 
 	if _tutorial != null and _player != null:
 		_tutorial.bind_player(_player)

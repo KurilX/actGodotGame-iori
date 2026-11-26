@@ -426,6 +426,11 @@ func take_hit(amount: int, from_x: float) -> void:
 	hp -= amount
 	_flash = FLASH_DURATION
 
+	# 受击/死亡音效（AudioMgr 是 root 子节点，组查找最稳）
+	var audio := get_tree().root.find_child("AudioMgr", true, false)
+	if audio != null:
+		audio.play_sfx("enemy_hurt", -4.0)
+
 	# 被击退
 	var dir := signf(global_position.x - from_x)
 	if dir == 0.0:
@@ -458,6 +463,8 @@ func take_hit(amount: int, from_x: float) -> void:
 	if hp <= 0:
 		hp = 0
 		_die()
+		if audio != null:
+			audio.play_sfx("enemy_die", -2.0)
 	queue_redraw()
 
 

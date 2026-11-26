@@ -26,6 +26,10 @@ import os
 import random
 import sys
 
+# 瓦片砌块器（side_guides 18 配置语义的通用封装）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tile_box as TB  # noqa: E402
+
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1144,46 +1148,38 @@ def make_deco(solids):
                     px[xx, base_y + 1] = hx("ink")
 
     def pillar(x, base_y, height, width=14):
-        """残柱：从 pixel-studio 瓦片图集 interior 瓦片采样柱身。
+        """残柱：**side_guides 瓦片砌块版**（T1 口径 + 柱顶草皮半格化）。
 
-        断口：顶部 2~4px 的锯齿（每列不同高），加 1px 描边。
-        底部碎石基座让它"长"在地上，不是插上去的。
+        用 tile_box.draw_box 的完整 18 配置语义：柱身 wall/column 瓦片
+        自带左受光/右压暗渐变（2px）。柱顶断口保留 surface 瓦片的
+        草顶（T1 实测比挖格断口好：废弃感叙事 + 顶部受光）。
+        **但整格草台在细柱上过宽**（BOSS 房 T1 top_issue：
+        "柱顶草台与主地形衔接缺乏过渡"）—— 砌完后把柱顶草台的
+        左右两端各削掉 4px，只留中间 12px 草，形成"草从断口中央
+        长出来"的收敛感。
         """
-        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
-        ax, ay, aw, ah = 80, 0, 20, 20   # interior 瓦片的 rect（第 5 格）
-        tile = Image.open(atlas_path).convert("RGBA") if os.path.exists(atlas_path) else None
-        for i, xx in enumerate(range(x, x + width)):
-            # 断口锯齿：只顶部有，每列 0~3px
-            jag = ((xx * 37 + x * 13) % 4)
-            for yy in range(base_y - height + jag, base_y):
-                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
-                    continue
-                if tile is not None:
-                    c = tile.getpixel((ax + (xx - x) % aw, ay + (yy % ah)))
-                    if c[3] > 128:
-                        px[xx, yy] = c[:3] + (255,)
-                        continue
-                px[xx, yy] = hx("stone")
-            # 左侧受光边
-            if 0 <= x < ROOM_W:
-                yy0 = base_y - height + jag
-                if 0 <= yy0 < ROOM_H:
-                    px[x, yy0] = hx("stone_lit") if tile is None else px[x, yy0]
-            # 描边
-            for yy in (base_y - height + jag, base_y - 1):
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("ink")
-        # 底部基座：2px 外扩的碎石
-        for dx in range(-3, width + 3):
-            xx = x + dx
-            for k in range(2):
-                yy = base_y - k
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
-        # 左缘整柱受光（R4b：缺受光面刻画）
-        for yy in range(base_y - height, base_y):
-            if 0 <= x < ROOM_W and 0 <= yy < ROOM_H:
-                px[x, yy] = hx("stone_hi")
+        atlas, rects = TB.load_atlas()
+        atlas_b, _ = TB.load_atlas(os.path.join(ROOT, "art", "tiles",
+                                                "tiles_tileset_b.png"))
+        cols = max(1, width // 20)
+        rows = max(1, height // 20)
+        grid = [[1] * cols for _ in range(rows)]
+        # 顶行锯齿：30% 挖格形成断口
+        for gx in range(cols):
+            if ((gx * 37 + x * 13) % 10) < 3:
+                grid[0][gx] = 0
+        top_y = base_y - rows * 20
+        TB.draw_box(px, x, top_y, grid, atlas, rects, atlas_b)
+        # 柱顶草台收边：顶行 surface 瓦片的草（前 7px 行）左右各削 4px，
+        # 用透明覆盖（deco 层量化不会把透明填色）
+        for gx in range(cols):
+            gx0 = x + gx * 20
+            if grid[0][gx] == 0:
+                continue
+            for yy in range(top_y, top_y + 7):
+                for xx in list(range(gx0, gx0 + 4)) + list(range(gx0 + 16, gx0 + 20)):
+                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        px[xx, yy] = (0, 0, 0, 0)
 
     def rock_pile(x, base_y, n=4):
         """石堆：n 块碎石叠成小丘，顶面受光，无描边（远景感）。"""
@@ -1267,27 +1263,17 @@ def make_deco(solids):
     #    从高台跳下来，矮墙在 x=1500/1550 的地面边缘）
 
     def low_wall(x, base_y, width, height):
-        """矮残墙：宽度向、1~2 格高，顶面锯齿，与地形同材质。"""
-        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
-        tile = (Image.open(atlas_path).convert("RGBA")
-                if os.path.exists(atlas_path) else None)
-        ax, ay, aw, ah = 80, 0, 20, 20
-        for i, xx in enumerate(range(x, x + width)):
-            jag = ((xx * 53 + x * 7) % 3)   # 顶面锯齿 0~2px
-            for yy in range(base_y - height + jag, base_y):
-                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
-                    continue
-                if tile is not None:
-                    c = tile.getpixel((ax + (xx - x) % aw,
-                                       ay + (yy % ah)))
-                    if c[3] > 128:
-                        px[xx, yy] = c[:3] + (255,)
-                        continue
-                px[xx, yy] = hx("stone")
-            # 顶面锯齿描边 + 底部落地
-            for yy in (base_y - height + jag, base_y - 1):
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("ink")
+        """矮残墙：**side_guides 瓦片砌块版**（1~2 格高）。"""
+        atlas, rects = TB.load_atlas()
+        atlas_b, _ = TB.load_atlas(os.path.join(ROOT, "art", "tiles",
+                                                "tiles_tileset_b.png"))
+        cols = max(1, width // 20)
+        rows = max(1, height // 20)
+        grid = [[1] * cols for _ in range(rows)]
+        for gx in range(cols):
+            if ((gx * 53 + x * 7) % 3) == 0:
+                grid[0][gx] = 0
+        TB.draw_box(px, x, base_y - rows * 20, grid, atlas, rects, atlas_b)
 
     low_wall(1500, 479, 34, 22)
     low_wall(1548, 479, 26, 18)
@@ -1309,97 +1295,48 @@ def make_deco(solids):
     # 位置全部避开 BOSS 出生点(1910)与战斗动线中央。
 
     def broken_wall(x, base_y, width, height):
-        """断墙：大面积砖体 + 顶部大锯齿 + 悬挑断砖。"""
-        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
-        tile = (Image.open(atlas_path).convert("RGBA")
-                if os.path.exists(atlas_path) else None)
-        ax, ay, aw, ah = 80, 0, 20, 20
-        overhang_x = x + width - 6           # 悬挑断砖的列
-        for i, xx in enumerate(range(x, x + width)):
-            jag = ((xx * 71 + x * 5) % 5)    # 顶部锯齿 0~4px
-            col_top = base_y - height + jag
-            # 悬挑断砖：这一列比邻列多出 6px（断裂后凸出的部分）
-            if xx == overhang_x:
-                col_top -= 6
-            elif xx == overhang_x + 1:
-                col_top -= 3
-            for yy in range(col_top, base_y):
-                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
-                    continue
-                if tile is not None:
-                    c = tile.getpixel((ax + (xx - x) % aw, ay + (yy % ah)))
-                    if c[3] > 128:
-                        px[xx, yy] = c[:3] + (255,)
-                        continue
-                px[xx, yy] = hx("stone")
-            # 左缘受光 + 右缘压暗（体积）
-            if 0 <= x < ROOM_W and x < ROOM_W:
-                for yy in range(col_top, base_y):
-                    if x <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                        if xx == x:
-                            px[xx, yy] = hx("stone_hi")
-                        elif xx == x + width - 1:
-                            px[xx, yy] = hx("stone_dk")
-            # 顶部描边
-            for yy in (col_top, col_top + 1):
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("ink")
-        # 底部基座
-        for dx in range(-4, width + 4):
-            xx = x + dx
-            for k in range(2):
-                yy = base_y - k
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+        """断墙：**side_guides 瓦片砌块版**。
+
+        网格语义：顶部锯齿挖格 + 悬挑断砖列（顶行该列保留）。
+        与残柱同理：挖格让 surface 瓦片只在**真正连续的顶面**出现，
+        断口处 wall 瓦片的上描边暴露，语义正确。
+        """
+        atlas, rects = TB.load_atlas()
+        atlas_b, _ = TB.load_atlas(os.path.join(ROOT, "art", "tiles",
+                                                "tiles_tileset_b.png"))
+        cols = max(1, width // 20)
+        rows = max(1, height // 20)
+        grid = [[1] * cols for _ in range(rows)]
+        for gx in range(cols):
+            j = ((gx * 71 + x * 5) % 5)
+            if j < 2:
+                grid[0][gx] = 0
+        # 悬挑断砖：第 cols-3 列顶行强制保留（在邻格都被挖掉时凸出）
+        if cols >= 4:
+            grid[0][cols - 3] = 1
+        TB.draw_box(px, x, base_y - rows * 20, grid, atlas, rects, atlas_b)
 
     def gate_frame(x, base_y, inner_w, height):
-        """门框：两根立柱 + 顶梁，洞口透出背景（不填充）。"""
-        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
-        tile = (Image.open(atlas_path).convert("RGBA")
-                if os.path.exists(atlas_path) else None)
-        ax, ay, aw, ah = 80, 0, 20, 20
-        col_w = 14
-        beam_h = 12
+        """门框：**side_guides 瓦片砌块版**。
 
-        def fill_col(cx0, w, y0, y1):
-            for xx in range(cx0, cx0 + w):
-                for yy in range(y0, y1):
-                    if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
-                        continue
-                    if tile is not None:
-                        c = tile.getpixel((ax + (xx - cx0) % aw,
-                                           ay + (yy % ah)))
-                        if c[3] > 128:
-                            px[xx, yy] = c[:3] + (255,)
-                            continue
-                    px[xx, yy] = hx("stone")
-            # 描边两侧
-            for yy in range(y0, y1):
-                for xx in (cx0, cx0 + w - 1):
-                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                        px[xx, yy] = hx("ink")
-
-        # 左柱 / 右柱
-        fill_col(x, col_w, base_y - height, base_y)
-        fill_col(x + col_w + inner_w, col_w, base_y - height, base_y)
-        # 顶梁（横跨洞口）
-        fill_col(x, col_w * 2 + inner_w, base_y - height - beam_h,
-                 base_y - height)
-        # 梁顶锯齿
-        for xx in range(x, x + col_w * 2 + inner_w):
-            jag = ((xx * 59 + x * 3) % 3)
-            for yy in (base_y - height - beam_h + jag,
-                       base_y - height - beam_h + jag + 1):
-                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                    px[xx, yy] = hx("ink")
-        # 两柱底部基座
-        for cx0 in (x, x + col_w + inner_w):
-            for dx in range(-3, col_w + 3):
-                xx = cx0 + dx
-                for k in range(2):
-                    yy = base_y - k
-                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
-                        px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+        两柱 wall_left/right（自带 L/R 渐变）+ 顶梁 ceiling 瓦片
+        （自带 B 面压暗）+ 内角瓦片（梁与柱交接处自动 inner_corner）。
+        洞口透出背景 —— tile_for 对 0 格直接跳过，无需手动清画布。
+        """
+        atlas, rects = TB.load_atlas()
+        atlas_b, _ = TB.load_atlas(os.path.join(ROOT, "art", "tiles",
+                                                "tiles_tileset_b.png"))
+        cols = 2 + max(1, inner_w // 20)
+        rows = max(1, height // 20)
+        beam = 1
+        grid = [[0] * cols for _ in range(rows)]
+        for gy in range(rows):
+            grid[gy][0] = 1
+            grid[gy][cols - 1] = 1
+        for gx in range(cols):
+            for gy in range(beam):
+                grid[gy][gx] = 1
+        TB.draw_box(px, x, base_y - rows * 20, grid, atlas, rects, atlas_b)
 
     broken_wall(1750, 479, 46, 92)
     broken_wall(1885, 479, 34, 68)
@@ -1424,6 +1361,19 @@ def main():
     print(f"  terrain.png  {terrain.size}")
 
     deco = make_deco(globals().get("_SOLIDS", []))
+    # deco 层量化回 28 色板：tile_box 砌块从瓦片图集采样，
+    # side_guides 的明暗乘法会产生板外过渡色（S5 版已在地形层做过同款量化）
+    dp = deco.load()
+    pal_list = [hx(k)[:3] for k in P]     # hex 字符串 → (r,g,b) 元组
+    for yy in range(deco.height):
+        for xx in range(deco.width):
+            r, g, b, a = dp[xx, yy]
+            if a == 0:
+                continue
+            best = min(pal_list,
+                       key=lambda p: (p[0] - r) ** 2 + (p[1] - g) ** 2
+                       + (p[2] - b) ** 2)
+            dp[xx, yy] = (best[0], best[1], best[2], a)
     deco.save(os.path.join(OUT, "deco.png"))
     print(f"  deco.png     {deco.size}")
 

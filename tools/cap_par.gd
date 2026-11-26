@@ -64,6 +64,17 @@ func _init() -> void:
 	for n in get_nodes_in_group("projectile"):
 		n.visible = false
 
+	# 隐藏穿透丝线技能特效：自动连招（bot）打出的 4 连击触发
+	# pierce_weave，半透明粉色光束横在 BOSS 脚下 —— AI 判成
+	# "残留的半透明粉色矩形框，疑似调试碰撞盒"（T3 实测 -7 分）。
+	# visible=false 会被 fire() 重新置 true，所以直接停 process + 清 active。
+	for n in root.find_children("*", "Node2D", true, false):
+		if n.get_script() and str(n.get_script().resource_path) == "res://src/skills/pierce_weave_fx.gd":
+			n.set_process(false)
+			n.set("_active", false)
+			n.visible = false
+			n.queue_redraw()
+
 	for shot in SHOTS:
 		player.global_position = Vector2(shot[0], 430)
 		# 等相机平滑跟上

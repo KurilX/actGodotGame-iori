@@ -1,46 +1,46 @@
 {
  "scale": 100,
- "avg_score": 73.0,
- "min_score": 72.0,
+ "avg_score": 74.0,
+ "min_score": 68.0,
  "targets": [
   {
    "label": "教程关起点",
    "path": "art/screenshots/par_x400.png",
    "failed": false,
-   "depth": 19.0,
-   "grounding": 19.0,
-   "material": 16.0,
-   "polish": 19.0,
-   "total": 73.0,
+   "depth": 21.0,
+   "grounding": 20.0,
+   "material": 18.0,
+   "polish": 21.0,
+   "total": 80.0,
    "samples": 5,
-   "top_issue": "角色与敌人的高饱和卡通贴图和夜景地形的低饱和配色风格略有割裂，显得像贴上去的贴纸",
-   "compare_note": "地形材质颗粒与边缘细节密度明显低于参考素材，参考图的土/石纹理层次丰富，截图地形更接近平整色块加简单砖纹"
+   "top_issue": "蓝色收集球与背景紫山明度接近，浮空物体缺少投影或描边，容易读成悬浮 bug",
+   "compare_note": "砖块与土层只有两三阶明暗、无噪点抖动，材质细节密度明显低于参考素材的石纹与草地点缀水平"
   },
   {
    "label": "跳跃段台阶",
    "path": "art/screenshots/par_x1200.png",
    "failed": false,
-   "depth": 20.0,
+   "depth": 18.0,
    "grounding": 20.0,
    "material": 16.0,
-   "polish": 18.0,
+   "polish": 20.0,
    "total": 74.0,
    "samples": 5,
-   "top_issue": "中景大面积砖墙使用重复纹理，缺乏破损、苔藓等变体，显得有些单调",
-   "compare_note": "整体层次与材质接近参考素材水准，但装饰元素（花草、道具）的分布密度略低于参考图，场景稍显空旷"
+   "top_issue": "中景砖块纹理重复度高且明度接近背景云层，台阶侧面缺少受光面/背光面的方向性变化，削弱了体块感",
+   "compare_note": "参考素材中地形有明显的顶面草皮、侧面土石分层和轮廓勾边，截图的砖块是单一均匀贴图，细节密度和材质分层略逊一筹"
   },
   {
    "label": "BOSS 房",
    "path": "art/screenshots/par_x2000.png",
    "failed": false,
    "depth": 19.0,
-   "grounding": 19.0,
-   "material": 16.0,
-   "polish": 18.0,
-   "total": 72.0,
+   "grounding": 17.0,
+   "material": 17.0,
+   "polish": 15.0,
+   "total": 68.0,
    "samples": 5,
-   "top_issue": "场景细节密度偏低，缺少Boss房应有的独特装饰与氛围物件，场景略显空旷",
-   "compare_note": "参考素材的土石材质纹理丰富、色彩层次分明，本图地形砖块重复度高、材质变化少，背景与前景的明暗分离不够强烈"
+   "top_issue": "角色脚下残留红色碰撞盒调试框，直接暴露工程状态，刺眼且破坏夜景氛围",
+   "compare_note": "远景层次与配色接近参考水准，但地形仅单一砖纹平铺，缺少参考素材中的土层镶边、草皮厚度和道具细节密度"
   }
  ],
  "references": [

@@ -84,7 +84,12 @@ const BULLET_TIME_SCALE := 0.35   # 子弹时间倍率
 const BULLET_TIME_DUR := 0.60
 
 # ── 受击 ──
-const HURT_STUN := 0.90           # 受击硬直
+const HURT_STUN := 0.45           # 受击硬直
+# v2（用户实测：0.90s 硬直"等太久"，硬直结束前 INVULN 也在倒计时，
+# 恢复行动瞬间就可能吃第二下）。动作游戏惯例：玩家硬直应明显短于
+# 受击无敌，让玩家恢复行动时还保有保护窗口。
+# 新平衡：硬直 0.45s（能明显感到顿挫）< 无敌 0.90s（恢复后有 0.45s
+# 安全期重新站位），且击退仍在，足以脱离敌人攻击范围。
 const KNOCKBACK := 15.0           # 击退距离
 const INVULN_TIME := 0.90         # 受击后无敌
 const MAX_HEARTS := 5

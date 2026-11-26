@@ -433,12 +433,26 @@ func take_hit(amount: int, from_x: float) -> void:
 	velocity.x = dir * 90.0 / maxf(knockback_resist, 0.1)
 
 	# 受击打断：重攻击（伤害 >= 4）可以打断敌人的前摇与攻击
+	#
+	# v2（用户实测："怪物受击硬直太小，打不动怪，打着打着反被正在被打
+	# 的怪攻击弹飞"）：轻攻击原来只在 IDLE/CHASE 打断，敌人 WINDUP/
+	# ATTACK 中吃轻攻击**完全不进硬直**——玩家一套轻四连打在出手中的
+	# 敌人身上，敌人前摇照走，连段一停立刻反打。
+	# 现在：轻攻击也打断（0.18s 短硬直），重攻击 0.30s 长硬直；
+	# 但**正在攻击的敌人被轻攻击打断会保留 60% 前摇进度**（快速恢复），
+	# 避免"无限控到死"——玩家仍需用重攻击真正打断出手。
 	var heavy := amount >= 4
-	if heavy or state in [State.IDLE, State.CHASE]:
+	if heavy or state in [State.IDLE, State.CHASE] \
+			or (state in [State.WINDUP, State.ATTACK] and heavy_breaks):
 		if state != State.DEAD:
+			var was_mid_swing := state in [State.WINDUP, State.ATTACK]
 			state = State.HURT
-			_hurt_duration = 0.25 if heavy else 0.12
+			_hurt_duration = 0.30 if heavy else 0.18
 			_timer = _hurt_duration
+			# 出手中被轻攻击打断：硬直结束后快速回到前摇中段
+			#（保留部分进度，不给无限连控的机会）
+			if was_mid_swing and not heavy:
+				_timer = _hurt_duration * 0.4
 			_set_attack_box(false)
 
 	if hp <= 0:

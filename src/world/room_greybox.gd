@@ -482,6 +482,20 @@ func _spawn_player() -> void:
 		bg.name = "BgParallax"
 		bg_layer.add_child(bg)
 		bg.setup(cam)
+
+		# ── 地面月光斑（C 层光影，世界坐标）──
+		#
+		# 月亮固定在屏幕 x≈60% 处，对应的世界 x = cam_x + 0.60*480。
+		# 用 MoonPatch 节点（世界层，z=-9 在地形之上、deco 之下）在
+		# "月亮正下方的地表"画一条 moon_hi 亮带 —— 光落在实体上，
+		# 且随相机按 0 视差换算移动，和场景同步。
+		# 这是用户要的"光影效果"核心：旧光柱不落在任何实体上。
+		var moon_patch := Node2D.new()
+		moon_patch.name = "MoonPatch"
+		moon_patch.set_script(load("res://src/world/moon_patch.gd"))
+		moon_patch.z_index = -9
+		add_child(moon_patch)
+		moon_patch.setup(cam)
 	else:
 		printerr("视差背景素材缺失（先跑 tools/make_bg_layers.py）")
 

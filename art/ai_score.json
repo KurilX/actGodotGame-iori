@@ -1,46 +1,46 @@
 {
  "scale": 100,
- "avg_score": 75.3,
- "min_score": 73.0,
+ "avg_score": 74.7,
+ "min_score": 69.0,
  "targets": [
   {
    "label": "教程关起点",
    "path": "art/screenshots/par_x400.png",
    "failed": false,
-   "depth": 18.0,
+   "depth": 19.0,
    "grounding": 20.0,
-   "material": 16.0,
-   "polish": 19.0,
-   "total": 73.0,
-   "samples": 7,
-   "top_issue": "场景元素稀疏且角色/敌人脚下缺少阴影锚定，悬浮感偏强",
-   "compare_note": "相比参考素材，地形砖块重复度高、草石细节密度明显不足，缺少道具与装饰层的填充"
+   "material": 17.0,
+   "polish": 18.0,
+   "total": 74.0,
+   "samples": 5,
+   "top_issue": "地形砖块纹理以均匀重复为主，缺乏土/石质感的明暗变化与破损细节，显得单薄",
+   "compare_note": "参考素材的地形有更密的杂点、植被与结构变化，截图的中景层次和细节密度明显低一档"
   },
   {
    "label": "跳跃段台阶",
    "path": "art/screenshots/par_x1200.png",
    "failed": false,
-   "depth": 19.0,
-   "grounding": 21.0,
-   "material": 16.0,
-   "polish": 18.0,
-   "total": 74.0,
-   "samples": 7,
-   "top_issue": "石砖地形贴图重复度过高，几乎每层砖纹理一致，缺乏边缘碎石、明暗交界等差异化修饰，台阶立面与顶面层次靠纯明度区分略显单调。",
-   "compare_note": "参考素材中地形边缘有泥土颗粒、草皮垂边和石块散布等高密度细节，而截图的砖块整体偏均匀，材质密度和噪点变化明显低一档。"
+   "depth": 18.0,
+   "grounding": 19.0,
+   "material": 15.0,
+   "polish": 17.0,
+   "total": 69.0,
+   "samples": 5,
+   "top_issue": "台阶侧面砖块纹理高度重复且缺少明暗分层，大面积同色砖墙显得单调",
+   "compare_note": "参考素材地形有清晰的顶面草皮/侧面土石分色和散落装饰（石块、木桶、道具），截图的砖块结构细节密度与变化明显更少"
   },
   {
    "label": "BOSS 房",
    "path": "art/screenshots/par_x2000.png",
    "failed": false,
    "depth": 21.0,
-   "grounding": 20.0,
-   "material": 17.0,
+   "grounding": 21.0,
+   "material": 18.0,
    "polish": 21.0,
-   "total": 79.0,
-   "samples": 7,
-   "top_issue": "场景偏空旷，角色与砖柱、草台之间缺少道具或装饰元素的中景过渡，BOSS 房缺少压迫性构图",
-   "compare_note": "砖块、草地、远景抖动的细节密度已接近参考素材水准，但在可交互物件与地形形态多样性上明显少于参考实景"
+   "total": 81.0,
+   "samples": 5,
+   "top_issue": "中景紫色山丘与近景地形的明度差不足，纵深层次略糊",
+   "compare_note": "角色与氛围接近商业级，但地形砖块纹理重复规律、细节密度略低于参考图集"
   }
  ],
  "references": [
@@ -48,5 +48,5 @@
   "docs\\refs\\pixel\\p4_forest.png",
   "docs\\refs\\pixel\\p3_db32_mockup.png"
  ],
- "samples_per_target": 7
+ "samples_per_target": 5
 }

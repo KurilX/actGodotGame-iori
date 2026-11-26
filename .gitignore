@@ -28,3 +28,11 @@ art/tiles/_work/
 art/bg/out/
 art/screenshots/_old_*.png
 art/scene/_old_*.png
+
+# Ì½ÕëÓëÕï¶Ï²úÎï
+art/_probe*.py
+art/screenshots/_*.png.import
+art/boss/*.png.import
+art/boss/src/*.png.import
+art/scene/terrain_ai_ground.png.import
+art/screenshots/_old_*.png.import

@@ -1,9 +1,12 @@
 """BOSS「瓷面的守夜人」：从概念图切出精灵，量化为游戏调色板。
 
 尺寸决策：
-  主角 48px、杂兵 30~36px，BOSS 定 **96px**（正好 2 倍主角）。
-  这个比例关系很重要 —— 太小没有压迫感，太大又会挤满 480x270 的视口
-  （96px 已占屏幕高度的 36%）。
+  主角 48px、杂兵 30~36px，BOSS 定 **120px**（2.5 倍主角）。
+  v2 调整（用户反馈"不够威严，不用按玩家比例"）：原 96px 是玩家
+  Q 版比例的直接放大（2.5 头身、大头小身），放大后像个"巨型玩偶"。
+  BOSS 需要自己的比例语言：**3.5 头身、宽肩、长腿、下盘沉稳**——
+  高度提到 120px（视口 270px 的 44%，压迫感上限内），
+  头部占比从 40% 压到 ~28%，肩宽拉大，披裙下摆加宽。
 
 输出：art/boss/src/warden.png
 """
@@ -16,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "art", "boss", "00_concept.png")
 OUT = os.path.join(ROOT, "art", "boss", "src")
 
-TARGET_H = 96
+TARGET_H = 120
 
 # 游戏主色板（docs/02-像素美术规范.md）+ BOSS 额外需要的少数几个色
 PALETTE_HEX = [

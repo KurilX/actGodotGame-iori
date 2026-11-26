@@ -100,8 +100,11 @@ func _ready() -> void:
 	# BOSS 用自定义动画集，覆盖基类生成的
 	_anim.sprite_frames = _boss_frames()
 	_anim.play("idle")
-	# 帧是 144x144，锚点要相应调整（基类按 48x48 设的 -24）
-	_anim.position = Vector2(0, -72)
+	# AnimatedSprite2D 默认 centered=true，position 是**帧中心**：
+	# 帧底要落在节点原点（脚底）→ position.y = -(FEET_Y - FRAME/2)
+	# = -(142 - 72) = -70。旧 -72 是帧 144 满高的巧合；v2 高个帧
+	# 脚底在 y=142（留 2px 余量），照搬 -72 会浮空 70px（实测）。
+	_anim.position = Vector2(0, -70)
 
 	# 接触阴影：BOSS 体型是杂兵 3 倍，脚下那只小光圈/小红点
 	# 会被 AI 评成"调试痕迹"——大体积必须有大的接地锚点

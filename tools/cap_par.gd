@@ -75,6 +75,14 @@ func _init() -> void:
 			n.visible = false
 			n.queue_redraw()
 
+	# BOSS 位置调试：打印实体/碰撞/动画锚点
+	for n in get_nodes_in_group("enemy"):
+		if n.get_script() and str(n.get_script().resource_path) == "res://src/enemies/boss_warden.gd":
+			var anim: Node2D = n.get("_anim")
+			print("  boss pos=", n.global_position,
+				  " anim_pos=", anim.position if anim else Vector2.ZERO,
+				  " cs=", n.get_child(0).position if n.get_child_count() > 0 else Vector2.ZERO)
+
 	for shot in SHOTS:
 		player.global_position = Vector2(shot[0], 430)
 		# 等相机平滑跟上

@@ -384,9 +384,9 @@ func _spawn_boss(pos: Vector2) -> void:
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size = Vector2(40, 88)        # 覆盖身体 + 头，玩家跳不过去
+	rect.size = Vector2(44, 110)        # v2 高个 BOSS（120px 身高，宽肩）
 	cs.shape = rect
-	cs.position = Vector2(0, -44)
+	cs.position = Vector2(0, -55)
 	body.add_child(cs)
 
 	add_child(body)

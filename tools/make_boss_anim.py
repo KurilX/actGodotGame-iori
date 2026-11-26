@@ -26,7 +26,7 @@ import clean_sprite_outline
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "art", "boss", "src", "warden.png")
+SRC = os.path.join(ROOT, "art", "boss", "src", "warden_tall.png")
 OUT = os.path.join(ROOT, "art", "boss", "frames")
 
 FRAME = 144

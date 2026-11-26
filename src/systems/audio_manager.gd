@@ -49,6 +49,20 @@ var _fade_tween: Tween
 
 
 func _ready() -> void:
+	# 音频总线：BGM/SFX 必须真实存在才能赋给 player.bus。
+	# 项目没有 default_bus_layout.tres，直接在运行时创建——
+	# 不存在的 bus 会报 "Invalid bus index -1" 且音效整条哑掉（实测）。
+	if AudioServer.get_bus_index("BGM") == -1:
+		var idx := AudioServer.bus_count
+		AudioServer.add_bus(idx)
+		AudioServer.set_bus_name(idx, "BGM")
+		AudioServer.set_bus_send(idx, "Master")
+	if AudioServer.get_bus_index("SFX") == -1:
+		var idx2 := AudioServer.bus_count
+		AudioServer.add_bus(idx2)
+		AudioServer.set_bus_name(idx2, "SFX")
+		AudioServer.set_bus_send(idx2, "Master")
+
 	_bgm_player = AudioStreamPlayer.new()
 	_bgm_player.name = "Bgm"
 	_bgm_player.bus = "BGM"

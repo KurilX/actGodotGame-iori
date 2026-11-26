@@ -100,18 +100,26 @@ def make_body(variant: int) -> Image.Image:
     v0/v1 之外加 **v2 破损变体**：每块砖中心带一条确定性短裂缝
     （1~2px 的 stone_dark 斜线），部分砖角缺一个 1px 口子。
     砌地图时破损变体按低概率混入，破坏平铺节奏。
+
+    ## 第四轮（R1 试错记录）
+
+    v3 风化蓝灰砖（night_mid 调）试过 12% 混入：地形与背景山峦明度粘连，
+    教程起点 82→68，已回退。**结论：地形必须保持比背景亮一档的前景身份，
+    变体只能在 stone 系内做噪声差异，不能往背景色靠。**
     """
     im = Image.new("RGBA", (CELL, CELL))
     px = im.load()
     salt = 101 * variant + 7
+    # v3 曾用 night_mid 蓝灰调（已回退，见上）；现在统一 stone 系
+    face_key = ("stone", "stone_lit", "stone_dark")
 
     def brick_tone(course: int, j: int) -> tuple:
         r = _h(course, j, salt + 31)
         if r < 0.14:
-            return PAL["stone_dark"]
+            return PAL[face_key[2]]
         if r > 0.93:
-            return PAL["stone_lit"]
-        return PAL["stone"]
+            return PAL[face_key[1]]
+        return PAL[face_key[0]]
 
     for y in range(CELL):
         course = y // 10
@@ -121,9 +129,9 @@ def make_body(variant: int) -> Image.Image:
             if yy == 0:
                 c = PAL["ink"]                       # 横砖缝
             elif yy == 1:
-                c = PAL["stone_lit"]                 # 受光顶边
+                c = PAL[face_key[1]]                 # 受光顶边
             elif yy == 9:
-                c = PAL["stone_dark"]                # 底部暗边
+                c = PAL[face_key[2]]                 # 底部暗边
             elif v_mort:
                 c = PAL["ink"]                       # 竖砖缝
             else:
@@ -131,10 +139,11 @@ def make_body(variant: int) -> Image.Image:
                 c = brick_tone(course, j)
                 r = _h(x, y, salt)                   # 逐像素噪声（x,y 同时参与）
                 if r < 0.07:
-                    c = PAL["stone_dark"]
+                    c = PAL[face_key[2]]
                 elif r > 0.95:
-                    c = PAL["stone_lit"]
-                if _h(x, y, salt + 55) < 0.05 and (yy in (2, 8) or v_mort):
+                    c = PAL[face_key[1]]
+                if _h(x, y, salt + 55) < (0.10 if variant == 3 else 0.05) \
+                        and (yy in (2, 8) or v_mort):
                     c = PAL["moss_dark"]
             px[x, y] = (*c, 255)
 
@@ -185,7 +194,7 @@ def make_surface() -> Image.Image:
 # ──────────────────── 图集：调 pixel-studio side_guides ────────────────────
 
 def build_atlases():
-    """三个 body 变体各跑一次 side_guides（v0/v1 正常 + v2 破损）。"""
+    """四个 body 变体各跑一次 side_guides（v0/v1 正常 + v2 破损 + v3 风化）。"""
     OUT_TILES.mkdir(parents=True, exist_ok=True)
     PS.clean_workroot()
     tmp = OUT_TILES / "_src"
@@ -194,8 +203,8 @@ def build_atlases():
     surface = make_surface()
     surface.save(tmp / "surface.png")
     atlases, reports = [], []
-    names = ["a", "b", "c"]
-    for v in (0, 1, 2):
+    names = ["a", "b", "c", "d"]
+    for v in (0, 1, 2, 3):
         body = make_body(v)
         body.save(tmp / f"body_{v}.png")
         body.save(OUT_TILES / f"tiles_body_{names[v]}.png")
@@ -304,9 +313,9 @@ def assemble(atlases, report):
             return False
         x, y, w, h = rect
         r = _h(gx, gy, 3)
-        # 78% v0 / 22% v1 —— 破损变体（v2）停用：
-        # 实测 v2 的裂缝在相机缩放下变成噪点，AI 分不升反降
-        # （跳跃段 91→85、BOSS 房 67→63）。保留生成能力，默认不混入。
+        # R1 教训：v3 蓝灰风化砖（night_mid 调）让地形与背景山峦明度粘连，
+        # 教程起点 82→68。地形必须保持"比背景亮一档"的前景身份。
+        # 回退到 v0/v1 双变体（R8 口径），v2/v3 保留生成能力不混入。
         v = 0 if r < 0.78 else 1
         tile = atlases[v].crop((x, y, x + w, y + h))
         terrain.alpha_composite(tile, (gx * CELL, gy * CELL))

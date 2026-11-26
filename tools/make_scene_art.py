@@ -1122,6 +1122,27 @@ def make_deco(solids):
     #
     # 位置避开 BOSS 出生点（1910, 478）与战斗动线中央。
 
+    def _ground_shadow(px, x, base_y, width, strength=0.5):
+        """接地阴影：大件底部一条 2px 半暗带 + 两侧渐散点。
+
+        R4b（7 采样）三个 top_issue 共同指向"装饰物缺落点阴影、
+        底座与草地衔接发虚"。阴影画在 base_y 行（草地顶），
+        用 ink 抖动（BAYER 阈值）模拟半透明，不遮死草地纹理。
+        """
+        for i, xx in enumerate(range(x - width // 2, x + width + width // 2)):
+            # 距中心越远越稀疏（渐散）
+            edge_dist = abs(i - width / 2) / (width / 2 + 1)
+            if edge_dist > 1.0:
+                continue
+            th = (BAYER[base_y % 4][xx % 4] + 0.5) / 16.0
+            if th < strength * (1.0 - 0.55 * edge_dist):
+                if 0 <= xx < ROOM_W and 0 <= base_y < ROOM_H:
+                    px[xx, base_y] = hx("ink")
+            # 第二行更稀
+            if th < strength * 0.35 * (1.0 - 0.7 * edge_dist):
+                if 0 <= xx < ROOM_W and 0 <= base_y + 1 < ROOM_H:
+                    px[xx, base_y + 1] = hx("ink")
+
     def pillar(x, base_y, height, width=14):
         """残柱：从 pixel-studio 瓦片图集 interior 瓦片采样柱身。
 
@@ -1159,6 +1180,10 @@ def make_deco(solids):
                 yy = base_y - k
                 if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
                     px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+        # 左缘整柱受光（R4b：缺受光面刻画）
+        for yy in range(base_y - height, base_y):
+            if 0 <= x < ROOM_W and 0 <= yy < ROOM_H:
+                px[x, yy] = hx("stone_hi")
 
     def rock_pile(x, base_y, n=4):
         """石堆：n 块碎石叠成小丘，顶面受光，无描边（远景感）。"""
@@ -1218,11 +1243,170 @@ def make_deco(solids):
     # 木桶：BOSS 房边缘 + 跳跃段平台
     barrel(1660, 479)
     barrel(1996, 479)
+    # 接地阴影：所有大件统一（R4b 三张截图的共同 top_issue）
+    _ground_shadow(px, 1650, 480, 16, 0.55)
+    _ground_shadow(px, 1722, 480, 16, 0.55)
+    _ground_shadow(px, 2104, 480, 16, 0.55)
+    _ground_shadow(px, 1592, 479, 26, 0.35)
+    _ground_shadow(px, 1980, 479, 22, 0.35)
+    _ground_shadow(px, 1660, 479, 14, 0.45)
+    _ground_shadow(px, 1996, 479, 14, 0.45)
 
     # BOSS 房吊灯：房顶 y=40 有一条天花板（solids[2]），挂两盏暖灯
     # 打破"无限平砖"的水平节奏
     lantern(1620, 70)
     lantern(2250, 70)
+
+    # ── 残破矮墙：跳跃段的中景过渡物 ──
+    #
+    # R2 评审：跳跃段"大面积区域缺乏变化，像程序生成的拼块"。
+    # 台阶区（x=1160~1470）两侧加两段 1~2 格高的残墙：
+    #  · 墙顶残缺（每列 0~2px 锯齿）
+    #  · 墙身同样从瓦片图集 interior 采样
+    #  · 位置全在可站表面边缘，不挡跳跃动线（玩家走 x=1200 时
+    #    从高台跳下来，矮墙在 x=1500/1550 的地面边缘）
+
+    def low_wall(x, base_y, width, height):
+        """矮残墙：宽度向、1~2 格高，顶面锯齿，与地形同材质。"""
+        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
+        tile = (Image.open(atlas_path).convert("RGBA")
+                if os.path.exists(atlas_path) else None)
+        ax, ay, aw, ah = 80, 0, 20, 20
+        for i, xx in enumerate(range(x, x + width)):
+            jag = ((xx * 53 + x * 7) % 3)   # 顶面锯齿 0~2px
+            for yy in range(base_y - height + jag, base_y):
+                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
+                    continue
+                if tile is not None:
+                    c = tile.getpixel((ax + (xx - x) % aw,
+                                       ay + (yy % ah)))
+                    if c[3] > 128:
+                        px[xx, yy] = c[:3] + (255,)
+                        continue
+                px[xx, yy] = hx("stone")
+            # 顶面锯齿描边 + 底部落地
+            for yy in (base_y - height + jag, base_y - 1):
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("ink")
+
+    low_wall(1500, 479, 34, 22)
+    low_wall(1548, 479, 26, 18)
+    _ground_shadow(px, 1500, 479, 40, 0.45)
+    _ground_shadow(px, 1548, 479, 32, 0.4)
+    # 跳跃段高台顶面的杂草堆（破坏"整片同一纹理"）
+    rock_pile(1256, 439, 3)
+    rock_pile(1352, 439, 4)
+
+    # ── BOSS 房大型装饰：断墙 + 门框 ──
+    #
+    # R3b（5 采样）确认 BOSS 房 69 的 top_issue 稳定：
+    # 「中景缺石柱以外的道具，纵深只靠背景渐变支撑」。
+    # 小石堆撑不起 740px 宽的房间，需要**大件**：
+    #   · 断墙两段（x=1750/1880，高 90/70）：墙体同瓦片材质，
+    #     顶部大锯齿 + 一块悬挑断砖（暗示坍塌瞬间）
+    #   · 门框一组（x=2230）：两根立柱 + 顶梁，洞口透出背景
+    #     —— 门洞是像素游戏BOSS 房的经典语言，制造"门后还有空间"的纵深
+    # 位置全部避开 BOSS 出生点(1910)与战斗动线中央。
+
+    def broken_wall(x, base_y, width, height):
+        """断墙：大面积砖体 + 顶部大锯齿 + 悬挑断砖。"""
+        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
+        tile = (Image.open(atlas_path).convert("RGBA")
+                if os.path.exists(atlas_path) else None)
+        ax, ay, aw, ah = 80, 0, 20, 20
+        overhang_x = x + width - 6           # 悬挑断砖的列
+        for i, xx in enumerate(range(x, x + width)):
+            jag = ((xx * 71 + x * 5) % 5)    # 顶部锯齿 0~4px
+            col_top = base_y - height + jag
+            # 悬挑断砖：这一列比邻列多出 6px（断裂后凸出的部分）
+            if xx == overhang_x:
+                col_top -= 6
+            elif xx == overhang_x + 1:
+                col_top -= 3
+            for yy in range(col_top, base_y):
+                if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
+                    continue
+                if tile is not None:
+                    c = tile.getpixel((ax + (xx - x) % aw, ay + (yy % ah)))
+                    if c[3] > 128:
+                        px[xx, yy] = c[:3] + (255,)
+                        continue
+                px[xx, yy] = hx("stone")
+            # 左缘受光 + 右缘压暗（体积）
+            if 0 <= x < ROOM_W and x < ROOM_W:
+                for yy in range(col_top, base_y):
+                    if x <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        if xx == x:
+                            px[xx, yy] = hx("stone_hi")
+                        elif xx == x + width - 1:
+                            px[xx, yy] = hx("stone_dk")
+            # 顶部描边
+            for yy in (col_top, col_top + 1):
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("ink")
+        # 底部基座
+        for dx in range(-4, width + 4):
+            xx = x + dx
+            for k in range(2):
+                yy = base_y - k
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+
+    def gate_frame(x, base_y, inner_w, height):
+        """门框：两根立柱 + 顶梁，洞口透出背景（不填充）。"""
+        atlas_path = os.path.join(ROOT, "art", "tiles", "tiles_tileset_a.png")
+        tile = (Image.open(atlas_path).convert("RGBA")
+                if os.path.exists(atlas_path) else None)
+        ax, ay, aw, ah = 80, 0, 20, 20
+        col_w = 14
+        beam_h = 12
+
+        def fill_col(cx0, w, y0, y1):
+            for xx in range(cx0, cx0 + w):
+                for yy in range(y0, y1):
+                    if not (0 <= xx < ROOM_W and 0 <= yy < ROOM_H):
+                        continue
+                    if tile is not None:
+                        c = tile.getpixel((ax + (xx - cx0) % aw,
+                                           ay + (yy % ah)))
+                        if c[3] > 128:
+                            px[xx, yy] = c[:3] + (255,)
+                            continue
+                    px[xx, yy] = hx("stone")
+            # 描边两侧
+            for yy in range(y0, y1):
+                for xx in (cx0, cx0 + w - 1):
+                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        px[xx, yy] = hx("ink")
+
+        # 左柱 / 右柱
+        fill_col(x, col_w, base_y - height, base_y)
+        fill_col(x + col_w + inner_w, col_w, base_y - height, base_y)
+        # 顶梁（横跨洞口）
+        fill_col(x, col_w * 2 + inner_w, base_y - height - beam_h,
+                 base_y - height)
+        # 梁顶锯齿
+        for xx in range(x, x + col_w * 2 + inner_w):
+            jag = ((xx * 59 + x * 3) % 3)
+            for yy in (base_y - height - beam_h + jag,
+                       base_y - height - beam_h + jag + 1):
+                if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                    px[xx, yy] = hx("ink")
+        # 两柱底部基座
+        for cx0 in (x, x + col_w + inner_w):
+            for dx in range(-3, col_w + 3):
+                xx = cx0 + dx
+                for k in range(2):
+                    yy = base_y - k
+                    if 0 <= xx < ROOM_W and 0 <= yy < ROOM_H:
+                        px[xx, yy] = hx("stone_dk" if k == 0 else "stone_hi")
+
+    broken_wall(1750, 479, 46, 92)
+    broken_wall(1885, 479, 34, 68)
+    gate_frame(2200, 479, 40, 96)
+    _ground_shadow(px, 1750, 479, 50, 0.6)
+    _ground_shadow(px, 1885, 479, 38, 0.55)
+    _ground_shadow(px, 2200, 479, 76, 0.6)
 
     return img
 

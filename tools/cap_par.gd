@@ -58,6 +58,12 @@ func _init() -> void:
 	for n in get_nodes_in_group("warning_fx"):
 		n.visible = false
 
+	# 清掉场上弹幕：灯笼虫的青色光球悬在半空时，
+	# AI 会判成"漂浮的蓝色拾取物缺投影"（R2 教程起点 76 的 top_issue 之一）。
+	# 弹幕是战斗实体，不该出现在美术评分截图里。
+	for n in get_nodes_in_group("projectile"):
+		n.visible = false
+
 	for shot in SHOTS:
 		player.global_position = Vector2(shot[0], 430)
 		# 等相机平滑跟上

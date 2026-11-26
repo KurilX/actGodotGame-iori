@@ -85,9 +85,25 @@ func _ready() -> void:
 	hp = max_hp
 	collision_layer = 1 << 2       # 第3层：敌人本体
 	collision_mask = 1             # 与地形碰撞
+	_build_shadow()
 	_build_visual()
 	_build_hitbox()
 	queue_redraw()
+
+
+func _build_shadow() -> void:
+	"""接触阴影：所有敌人通用。
+
+	AI 评审反复点名"悬浮物与 bug 感只有一线之隔"——飞行的灯笼虫
+	没有接地锚点时看着像没落地的 bug。阴影脚本自己向下射线找地面，
+	离地越高越淡越小，是像素游戏最便宜有效的接地暗示。
+	"""
+	var sh := Node2D.new()
+	sh.name = "Shadow"
+	sh.set_script(load("res://src/player/shadow.gd"))
+	# 略小于角色：敌人碰撞体 18x20，角色 20px 宽用 14
+	sh.radius_scale = 0.85
+	add_child(sh)
 
 
 # ─────────────── 子类可覆盖的钩子 ───────────────

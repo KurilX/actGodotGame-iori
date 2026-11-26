@@ -437,7 +437,7 @@ func _draw_secondary(font: Font, vs: Vector2) -> void:
 	# 标题
 	var lbl := "存档槽"
 	var lw := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-	draw_string(font, Vector2((vs.x - lw) * 0.5, rs["export"].position.y - 5),
+	draw_string(font, Vector2((vs.x - lw) * 0.5, rs["import"].position.y - 5),
 				lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
 				Color(C_DIM.r, C_DIM.g, C_DIM.b, 0.8))
 

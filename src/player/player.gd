@@ -247,14 +247,24 @@ func _physics_process(delta: float) -> void:
 # ────────────────────────────── 输入 ──────────────────────────────
 
 func _handle_input(_delta: float) -> void:
-	# 轻攻击输入：**按住也算**，不要求每一下都重新点。
-	# 动作游戏的通行手感是按住攻击键持续连打；只认 just_pressed 会导致
-	# 玩家必须疯狂点击才能接上连段，手感非常糟。
-	if Input.is_action_pressed("attack"):
+	# 轻攻击输入：**just_pressed 置缓存**（一次点按 = 恰好一段）。
+	#
+	# ## 为什么不能用 is_action_pressed（v2 修复的 bug）
+	#
+	# 旧版用 is_action_pressed：物理 120Hz 下一次点按持续 2~4 帧，
+	# 每帧都把 _combo_buffer 置 true。第 1 帧消费出段 1 后，
+	# 攻击进行中 buffer 又被置回 true → 段 1 取消窗口（385 行）消费
+	# buffer 接段 2 → **点一下 J 打出两段**（用户实测）。
+	#
+	# 「按住连打」的手感不受影响：段 1 进行中玩家仍按着键，
+	# 取消窗口处（385 行改为实时读 is_action_pressed）自然接段 2——
+	# 连打的判定挪到了「消费时键还按着」，而不是「置位时键按着」。
+	#
+	# 重攻击同理（旧版同款 bug，一起修）。
+	if Input.is_action_just_pressed("attack"):
 		_combo_buffer = true
 
-	# 重攻击：同样支持按住连打，但用独立缓冲，不与轻攻击互相消耗
-	if Input.is_action_pressed("heavy"):
+	if Input.is_action_just_pressed("heavy"):
 		_heavy_buffer = true
 
 	# 闪避优先于一切（除了受击/死亡）
@@ -377,12 +387,17 @@ func _update_attack(delta: float) -> void:
 	var progress: float = t / float(seg["dur"])
 
 	# 取消窗口：轻攻击过半可取消；重攻击几乎不能（HEAVY_CANCEL_AFTER=0.92）
+	# 「按住连打」在这里判定：段进行中**攻击键仍被按住** → 接下一段。
+	# （v2：置位挪到 just_pressed 后，连打的意图改由消费时实时读键承担——
+	#   否则一次点按会因多帧置位而打出两段，实测 bug。）
 	var cancel_after := HEAVY_CANCEL_AFTER if is_heavy_attack else COMBO_CANCEL_AFTER
+	var hold_key := Input.is_action_pressed("heavy") if is_heavy_attack \
+			else Input.is_action_pressed("attack")
 	var buf := _heavy_buffer if is_heavy_attack else _combo_buffer
 	var max_n := HEAVY_MAX if is_heavy_attack else COMBO_MAX
 	var idx := _heavy_index if is_heavy_attack else _combo_index
 
-	if buf and progress >= cancel_after and idx < max_n - 1:
+	if (buf or hold_key) and progress >= cancel_after and idx < max_n - 1:
 		_hitbox.set_active(false)
 		# 取消进下一段：同样走链，保证链与段号一致
 		if is_heavy_attack:
@@ -423,16 +438,18 @@ func _try_next_combo() -> bool:
 
 	第 4 段打完后**循环回第 1 段**（链满整体清空），
 	这样按住攻击键可以无限连打。
+	（v2：自然结束的接段也接受"键仍按住"——与取消窗口同语义，
+	按住连打不依赖多帧置位。）
 	"""
-	if not _combo_buffer:
-		return false
-	_combo_buffer = false
-	is_heavy_attack = false
-	var idx := _chain_push(ComboChain.KIND_LIGHT)
-	# 链已经在回环时清空过，idx 就是正确的段号
-	_combo_index = idx
-	_begin_swing()
-	return true
+	if _combo_buffer or Input.is_action_pressed("attack"):
+		_combo_buffer = false
+		is_heavy_attack = false
+		var idx := _chain_push(ComboChain.KIND_LIGHT)
+		# 链已经在回环时清空过，idx 就是正确的段号
+		_combo_index = idx
+		_begin_swing()
+		return true
+	return false
 
 
 func _try_next_heavy() -> bool:
@@ -441,20 +458,20 @@ func _try_next_heavy() -> bool:
 	与轻攻击的差别：**第 3 段打完不回第 1 段**，而是收招结束。
 	重攻击是「一套打完」的爆发，循环回去会变成无脑连按。
 	"""
-	if not _heavy_buffer:
-		return false
-	_heavy_buffer = false
-	# 已经是第 3 段（index 达到上限）→ 收招，不再接
-	var cur: int = _chain.current_index(ComboChain.KIND_HEAVY)
-	if cur >= HEAVY_MAX - 1:
-		_heavy_index = 0
-		_heavy_idle = 999.0
-		return false
-	is_heavy_attack = true
-	var idx := _chain_push(ComboChain.KIND_HEAVY)
-	_heavy_index = idx
-	_begin_swing()
-	return true
+	if _heavy_buffer or Input.is_action_pressed("heavy"):
+		_heavy_buffer = false
+		# 已经是第 3 段（index 达到上限）→ 收招，不再接
+		var cur: int = _chain.current_index(ComboChain.KIND_HEAVY)
+		if cur >= HEAVY_MAX - 1:
+			_heavy_index = 0
+			_heavy_idle = 999.0
+			return false
+		is_heavy_attack = true
+		var idx := _chain_push(ComboChain.KIND_HEAVY)
+		_heavy_index = idx
+		_begin_swing()
+		return true
+	return false
 
 
 func _begin_swing() -> void:

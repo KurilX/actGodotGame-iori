@@ -1,0 +1,16 @@
+{
+ "hair_lit": "#7CBF5A",
+ "hair_dark": "#4A8A3A",
+ "skin_lit": "#F5EFE0",
+ "skin_dark": "#E8D5B5",
+ "cape_lit": "#2A3A63",
+ "cape_dark": "#1B2244",
+ "cloth_lit": "#E8E8E0",
+ "cloth_dark": "#B8B8C0",
+ "ink": "#12142A",
+ "boot": "#1B2244",
+ "blade": "#A8D8E8",
+ "blade_hi": "#D8F0F8",
+ "hilt": "#C2456A",
+ "danger": "#FF7A9C"
+}

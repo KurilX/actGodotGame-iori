@@ -14,7 +14,12 @@ const fs = require("fs");
 
 const ROOT = "D:\\Program Files\\Projects\\personal\\actGame";
 const SKILL = path.join(ROOT, ".agents", "skills", "byted-ark-seedream-skill");
-const API_KEY = "ARK_KEY_REDACTED";
+// API key：环境变量 ARK_API_KEY 或 tools/ark_key.txt（gitignored），不入库
+const API_KEY = process.env.ARK_API_KEY ||
+  (() => {
+    const kf = path.join(ROOT, "tools", "ark_key.txt");
+    return fs.existsSync(kf) ? fs.readFileSync(kf, "utf-8").trim() : "";
+  })();
 
 const args = process.argv.slice(2);
 const [promptFile, refList, outDir, optimize, gridPx] = args;

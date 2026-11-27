@@ -34,7 +34,7 @@ import keyframe as K  # noqa: E402
 
 def load_parts():
     p = {}
-    for n in ("head", "torso", "skirt", "leg_l", "leg_r"):
+    for n in ("head", "torso", "skirt", "leg_l", "leg_r", "arm_r"):
         p[n] = Image.open(os.path.join(PARTS, f"{n}.png")).convert("RGBA")
     with open(os.path.join(PARTS, "palette.json"), encoding="utf-8") as f:
         p["palette"] = json.load(f)
@@ -95,9 +95,19 @@ def compose(p, *, body_dy=0.0, crouch=0.0, lean=0.0, torso_dx=0.0,
     ax, ay = 20 + torso_dx + lean, FEET_Y - legs_h - body_dy
     blit_scaled(img, p["skirt"], ax, ay)
 
-    # 躯干（含双臂，底与裙顶重叠 2px）
+    # 躯干（含左臂，底与裙顶重叠 2px）
     ax, ay = 20 + torso_dx + lean, FEET_Y - legs_h - 4 - body_dy
     blit_scaled(img, p["torso"], ax, ay)
+
+    # 右臂（持剑侧，独立层——可旋转挥动，肩锚点在躯干右肩）
+    arm_r = p["arm_r"]
+    shoulder_x = 20 + torso_dx + lean + 3.0   # 右肩位置
+    shoulder_y = FEET_Y - legs_h - 4 - 9 - body_dy  # 肩高（躯干顶下 3px）
+    arm_rot = arm_r.rotate(-sword_angle + 75, resample=Image.NEAREST,
+                           expand=True, center=(2, 3))
+    img.alpha_composite(arm_rot,
+                        (int(round(shoulder_x - arm_rot.width / 2)),
+                         int(round(shoulder_y - 3))))
 
     # 头（底与躯干顶重叠 2px）
     axh, ayh = 20 + torso_dx + lean, FEET_Y - legs_h - 4 - 12 - body_dy

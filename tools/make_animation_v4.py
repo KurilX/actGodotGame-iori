@@ -34,7 +34,7 @@ import keyframe as K  # noqa: E402
 
 def load_parts():
     p = {}
-    for n in ("head", "torso", "skirt", "arm_l", "arm_r", "leg_l", "leg_r"):
+    for n in ("head", "torso", "skirt", "leg_l", "leg_r"):
         p[n] = Image.open(os.path.join(PARTS, f"{n}.png")).convert("RGBA")
     with open(os.path.join(PARTS, "palette.json"), encoding="utf-8") as f:
         p["palette"] = json.load(f)
@@ -74,41 +74,33 @@ def compose(p, *, body_dy=0.0, crouch=0.0, lean=0.0, torso_dx=0.0,
     squash = round(crouch * 3)            # 腿压 0..3 逻辑px
     body_shift = squash                    # 躯干随之下沉
 
-    # 部件显示高度（PX 倍放大后的实际像素）：腿 14 显示px、裙 8、躯干 12、头 31
-    # 布局（显示px，脚底=78）：
-    #   legs  底 78, 顶 64
-    #   skirt 底 64, 顶 56
-    #   torso 底 58, 顶 46   （裙顶与躯干底重叠 2px，保证衔接）
-    #   head  底 48,  顶 17  （头底与躯干顶重叠 2px）
-    # body_dy 负 = 上浮；crouch 腿压缩 + 身体下沉
-
-    legs_h = 14 - squash                  # 显示px（部件原生高 14）
+    # 部件布局（显示px = 逻辑px 1:1，脚底 = 78）：
+    #   head  高 26（0..26，含双马尾全宽）
+    #   torso 高 12（24..36，含双臂——手臂不再是独立层，避免三只手）
+    #   skirt 高 8 （34..42）
+    #   legs  高 8 （40..48，脚底 = 78 - 30 = 48 + 30 偏移基准…）
+    #   实际总高 = 头 26 + 躯干 12（重叠 2）+ 裙 8（重叠 2）+ 腿 8 = 48 ✓
+    legs_h = 6 - squash                  # 腿显示px（原生 8）
 
     # 腿（底部锚定 78）
-    for key, xoff, dx, fy in (("leg_l", -4.0, foot_l_dx, foot_l[1]),
-                              ("leg_r", 4.0, foot_r_dx, foot_r[1])):
+    for key, xoff, dx, fy in (("leg_l", -3.0, foot_l_dx, foot_l[1]),
+                              ("leg_r", 3.0, foot_r_dx, foot_r[1])):
         leg = p[key]
         if squash > 0:
             leg = leg.crop((0, squash, leg.width, leg.height))
         ax, ay = 20 + xoff + dx, FEET_Y - fy + body_dy
         blit_scaled(img, leg, ax, ay - fy + body_dy)
 
-    # 裙（底 = 腿顶 64）
+    # 裙（底 = 腿顶）
     ax, ay = 20 + torso_dx + lean, FEET_Y - legs_h - body_dy
     blit_scaled(img, p["skirt"], ax, ay)
 
-    # 躯干（底 = 58，与裙顶 56 重叠衔接）
-    ax, ay = 20 + torso_dx + lean, FEET_Y - legs_h - 6 - body_dy
+    # 躯干（含双臂，底与裙顶重叠 2px）
+    ax, ay = 20 + torso_dx + lean, FEET_Y - legs_h - 4 - body_dy
     blit_scaled(img, p["torso"], ax, ay)
 
-    # 手臂（左右，肩位随躯干）
-    axl, ayl = 20 - 11 + torso_dx + lean, FEET_Y - legs_h - 6 + 2 - body_dy
-    blit_scaled(img, p["arm_l"], axl, ayl)
-    axr, ayr = 20 + 11 + torso_dx + lean, FEET_Y - legs_h - 6 + 2 - body_dy
-    blit_scaled(img, p["arm_r"], axr, ayr)
-
-    # 头（底 = 躯干顶 46 + 2 重叠）
-    axh, ayh = 20 + torso_dx + lean, FEET_Y - legs_h - 12 - body_dy
+    # 头（底与躯干顶重叠 2px）
+    axh, ayh = 20 + torso_dx + lean, FEET_Y - legs_h - 4 - 12 - body_dy
     blit_scaled(img, p["head"], axh, ayh)
 
     # 剑
